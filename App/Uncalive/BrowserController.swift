@@ -76,6 +76,7 @@ final class BrowserController: NSObject, WKNavigationDelegate, WKUIDelegate, NSW
             let previous = await sessionValue()
             while waitingForLogin, !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(500))
+                _ = try? await webView.evaluateJavaScript(Self.loginFixupScript)
                 #if DEBUG
                 await logLoginState()
                 #endif
@@ -86,6 +87,49 @@ final class BrowserController: NSObject, WKNavigationDelegate, WKUIDelegate, NSW
             }
         }
     }
+
+    /// 아카라이브 로그인 페이지가 캡챠 단계(stage-3)를 중복 초기화할 때
+    /// Turnstile 위젯은 성공했는데 로그인 버튼이 숨겨진 채 멈추는 사이트 버그를 보완합니다.
+    private static let loginFixupScript = """
+    (function () {
+      if (typeof turnstile === 'undefined') return;
+      if (!turnstile.__uncalivePatched && typeof turnstile.render === 'function') {
+        turnstile.__uncalivePatched = true;
+        const origRender = turnstile.render.bind(turnstile);
+        turnstile.render = function (container, options) {
+          const el = typeof container === 'string' ? document.querySelector(container) : container;
+          if (el && el.childElementCount > 0) {
+            try { turnstile.remove(el); } catch (e) { el.innerHTML = ''; }
+          }
+          return origRender(container, options);
+        };
+      }
+      const stage = document.querySelector('#stage-3.active');
+      if (!stage) {
+        window.__uncaliveSubmittedToken = null;
+        return;
+      }
+      let token = null;
+      try {
+        if (turnstile.isExpired && turnstile.isExpired()) {
+          turnstile.reset();
+          return;
+        }
+        token = turnstile.getResponse();
+      } catch (e) {}
+      if (!token) return;
+      const button = stage.querySelector('button[data-submitstage]');
+      if (!button) return;
+      if (getComputedStyle(button).display === 'none') {
+        button.style.display = '';
+        if (window.__uncaliveSubmittedToken !== token) {
+          window.__uncaliveSubmittedToken = token;
+          button.click();
+        }
+      }
+    })();
+    true
+    """
 
     private func finishLogin() {
         guard waitingForLogin else { return }

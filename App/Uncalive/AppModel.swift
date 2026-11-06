@@ -375,6 +375,20 @@ final class AppModel {
         saveCollection()
     }
 
+    func removeFromCollection(_ id: String) {
+        collection.entries.removeAll { $0.id == id }
+        collection.checked.remove(id)
+        saveCollection()
+    }
+
+    func removeCheckedFromCollection() {
+        let ids = collection.checked
+        guard !ids.isEmpty else { return }
+        collection.entries.removeAll { ids.contains($0.id) }
+        collection.checked.removeAll()
+        saveCollection()
+    }
+
     /// 글 주소는 바로 더하고, 목록 주소는 지정한 범위만큼 읽습니다.
     func addTargets(from text: String, scope: ListScope) {
         var lists: [URL] = []
@@ -423,22 +437,35 @@ final class AppModel {
     // MARK: - 다운로드
 
     func startDownload(from list: EntryList) {
-        startDownload(list.entries.filter { list.checked.contains($0.id) }, source: list.kind == .scraps ? .scrap : .collection)
+        let selected = list.entries.filter { list.checked.contains($0.id) }
+        let wasRunning = job?.isActive == true
+        startDownload(selected, source: list.kind == .scraps ? .scrap : .collection)
+        // 대기열에 넣은 글은 선택을 풀어 들어갔음을 알립니다.
+        if wasRunning { list.checked.subtract(selected.map(\.id)) }
     }
 
     private func startDownload(_ selected: [ScrapEntry], source: ArchiveSource) {
-        guard !isBusy, !selected.isEmpty else { return }
+        guard !selected.isEmpty else { return }
 
-        let job = DownloadJob(totalPosts: selected.count)
+        if let job, job.isActive {
+            if !job.isClosed {
+                job.enqueue(selected, source: source)
+            } else {
+                // 마지막 묶음이 막 끝난 순간입니다. 정리를 기다렸다가 새로 시작합니다.
+                Task {
+                    await jobTask?.value
+                    startDownload(selected, source: source)
+                }
+            }
+            return
+        }
+        guard !isBusy else { return }
+
+        let job = DownloadJob(entries: selected, source: source)
         self.job = job
         section = .downloads
         preventSleep(true)
 
-        // 사용자가 직접 고른 글이므로 받은 기록이 있어도 다시 확인합니다. 있는 파일은 재사용합니다.
-        var options = options
-        options.destination = libraryRoot
-        options.source = source
-        options.skipCompleted = false
         let engine = engine
         let (stream, continuation) = AsyncStream.makeStream(of: EngineEvent.self)
         jobTask = Task {
@@ -449,7 +476,14 @@ final class AppModel {
                 }
             }
             do {
-                _ = try await engine.download(selected, options: options, control: job.control) { continuation.yield($0) }
+                while let batch = job.nextBatch() {
+                    // 사용자가 직접 고른 글이므로 받은 기록이 있어도 다시 확인합니다. 있는 파일은 재사용합니다.
+                    var options = self.options
+                    options.destination = self.libraryRoot
+                    options.source = batch.source
+                    options.skipCompleted = false
+                    _ = try await engine.download(batch.entries, options: options, control: job.control) { continuation.yield($0) }
+                }
                 continuation.finish()
                 await consumer.value
                 job.state = .finished

@@ -24,9 +24,19 @@ final class DownloadJob {
         let text: String
     }
 
-    let totalPosts: Int
+    struct Batch {
+        let entries: [ScrapEntry]
+        let source: ArchiveSource
+    }
+
+    var totalPosts: Int
     let startedAt = Date()
     let control = RunControl()
+
+    private var queuedIDs: Set<String>
+    /// 마지막 묶음까지 가져간 뒤에는 더 받을 수 없습니다.
+    private(set) var isClosed = false
+    private var pendingBatches: [Batch]
 
     var state = State.running
     var finishedPosts = 0
@@ -41,8 +51,34 @@ final class DownloadJob {
     var log: [LogLine] = []
     var finishedAt: Date?
 
-    init(totalPosts: Int) {
-        self.totalPosts = totalPosts
+    init(entries: [ScrapEntry], source: ArchiveSource) {
+        self.totalPosts = entries.count
+        self.queuedIDs = Set(entries.map(\.id))
+        self.pendingBatches = [Batch(entries: entries, source: source)]
+    }
+
+    /// 이미 대기열에 들어 있는 글은 빼고 새 글만 뒤에 추가합니다.
+    @discardableResult
+    func enqueue(_ entries: [ScrapEntry], source: ArchiveSource) -> Int {
+        let fresh = entries.filter { queuedIDs.insert($0.id).inserted }
+        guard !fresh.isEmpty else { return 0 }
+        totalPosts += fresh.count
+        pendingBatches.append(Batch(entries: fresh, source: source))
+        append(.info, "대기열에 \(fresh.count)개 추가됨")
+        return fresh.count
+    }
+
+    func nextBatch() -> Batch? {
+        guard !pendingBatches.isEmpty else {
+            isClosed = true
+            return nil
+        }
+        return pendingBatches.removeFirst()
+    }
+
+    /// 아직 시작하지 않은 묶음의 글 수입니다.
+    var queuedPosts: Int {
+        pendingBatches.reduce(0) { $0 + $1.entries.count }
     }
 
     var isActive: Bool {

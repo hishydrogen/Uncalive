@@ -60,7 +60,7 @@ private struct JobView: View {
 
     private var title: String {
         switch job.state {
-        case .running: "\(job.finishedPosts) / \(job.totalPosts)개 처리됨"
+        case .running: "\(job.finishedPosts) / \(job.totalPosts)개 처리됨" + (job.queuedPosts > 0 ? " (대기 \(job.queuedPosts)개)" : "")
         case .paused: "일시정지됨"
         case .waitingForChallenge: "Cloudflare 보안 확인 대기 중"
         case .finished: "다운로드 완료"
