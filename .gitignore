@@ -1,0 +1,15 @@
+.DS_Store
+.build/
+.swiftpm/
+build/
+dist/
+DerivedData/
+xcuserdata/
+__pycache__/
+*.pyc
+.venv/
+arca_scraped_images/
+
+# 이전 파이썬 스크립트와 개발 초기의 시제품입니다. 저장소에 넣지 않습니다.
+Legacy/
+Spikes/
