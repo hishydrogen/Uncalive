@@ -130,8 +130,8 @@ textarea { width: 100%; border: 1px solid var(--line-strong); border-radius: var
 .segmented button:hover:not(:disabled) { background: none; color: var(--text); }
 .segmented button:active:not(:disabled) { background: none; transform: none; }
 .segmented button.selected { color: var(--text); font-weight: 650; }
-.card .segmented { display: flex; }
-.card .segmented button { flex: 1; justify-content: center; }
+.card .segmented, fieldset.group .segmented { display: flex; }
+.card .segmented button, fieldset.group .segmented button { flex: 1; justify-content: center; }
 
 /* 체크 상자 */
 input[type="checkbox"]:not([role="switch"]) {
@@ -242,12 +242,13 @@ table.entries { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .entries tbody tr.checked:hover { background: color-mix(in srgb, var(--accent) 19%, transparent); }
 .entries tbody tr.cursor td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .entries td.title { font-weight: 500; }
-.entries .check { width: 38px; text-align: center; }
-.entries .channel { width: 110px; }
-.entries .category { width: 90px; }
-.entries .author { width: 100px; }
-.entries .date { width: 92px; font-variant-numeric: tabular-nums; text-overflow: clip; color: var(--muted); }
-.entries .status { width: 64px; }
+.entries .check { text-align: center; }
+.entries .date { font-variant-numeric: tabular-nums; text-overflow: clip; color: var(--muted); }
+.entries th { position: sticky; }
+.col-resize { position: absolute; left: -4px; top: 6px; bottom: 6px; width: 8px; cursor: col-resize; z-index: 2; }
+.col-resize::after { content: ""; position: absolute; left: 3.5px; top: 0; bottom: 0; width: 1px; background: var(--line-strong); transition: background var(--fast) var(--ease), width var(--fast) var(--ease); }
+.col-resize:hover::after, body.resizing .col-resize:active::after { background: var(--accent); width: 2px; left: 3px; }
+body.resizing, body.resizing * { cursor: col-resize !important; user-select: none; }
 .status-cell { display: flex; align-items: center; gap: 6px; }
 .entries td.channel, .entries td.category, .entries td.author { color: var(--muted); }
 .status-icon { display: inline-grid; place-content: center; color: color-mix(in srgb, var(--text) 30%, transparent); }
@@ -259,8 +260,14 @@ table.entries { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .entries tbody tr:hover .remove, .remove:focus-visible { opacity: 1; }
 .marquee { position: absolute; z-index: 2; pointer-events: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 4px; }
 .action-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--surface-2); }
-.action-bar .summary { font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; display: block; height: auto; }
-.action-bar .muted { font-variant-numeric: tabular-nums; }
+.selection-summary { display: flex; align-items: center; gap: 0; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 13px; font-variant-numeric: tabular-nums; }
+.selection-summary strong { font-weight: 650; margin-right: 10px; }
+.selection-summary .summary-part { color: var(--muted); }
+.selection-summary .summary-part + .summary-part::before, .selection-summary strong + .summary-part::before { content: ""; display: inline-block; width: 1px; height: 11px; background: var(--line-strong); margin: 0 10px; vertical-align: -1px; }
+.selection-summary strong + .summary-part::before { display: none; }
+.selection-summary b { color: var(--text); font-weight: 650; margin-left: 2px; }
+.selection-summary .warn b { color: var(--warning); }
+.selection-summary .hidden-note { color: var(--accent); }
 
 /* 대화 상자와 메뉴 */
 .dialog-backdrop { position: fixed; inset: 0; background: rgba(10, 10, 20, .34); display: flex; align-items: center; justify-content: center; z-index: 50; animation: fade-in var(--base) var(--ease) backwards; }
@@ -395,3 +402,25 @@ progress:indeterminate { background: linear-gradient(90deg, transparent 0%, var(
 
 /* 화면 캡처는 운영체제 재질을 담지 못하므로, 검수용으로 찍을 때는 사이드바를 평소 색으로 칠합니다. */
 html.capture .sidebar { background: var(--sidebar) !important; }
+
+/* 맥은 창 단추(신호등)가 화면 위에 겹쳐 그려지므로, 창 전체를 덮는 크게 보기의 제목을 그만큼 비켜 둡니다. */
+html.platform-darwin .lightbox-bar { padding-left: 92px; -webkit-app-region: drag; }
+html.platform-darwin .lightbox-bar button { -webkit-app-region: no-drag; }
+
+/* 보관함과 갤러리의 고르기 */
+.selectable { position: relative; outline: none; }
+.library-card { display: flex; position: relative; border-radius: var(--radius-lg); }
+.library-card.selected .cover { box-shadow: 0 0 0 3px var(--accent), var(--shadow-lift); }
+.library-card.selected .card-title { color: var(--accent); }
+.library-card.cursor:not(.selected) .cover { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+.library-row.selected { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.library-row.cursor { box-shadow: inset 3px 0 0 var(--accent); }
+.gallery-cell.selected { box-shadow: 0 0 0 3px var(--accent); }
+.gallery-cell.selected::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--accent) 18%, transparent); pointer-events: none; }
+.gallery-cell.cursor:not(.selected) { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+.busy-badge { position: absolute; top: 8px; left: 8px; z-index: 1; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 650; color: var(--accent-text); background: var(--accent); box-shadow: var(--shadow-sm); }
+.library-row .busy-badge { position: static; }
+.selection-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--line); background: var(--surface-2); animation: screen-in var(--base) var(--ease) backwards; }
+.selection-bar strong { font-weight: 650; font-variant-numeric: tabular-nums; }
+button.danger-fill, button.primary.danger-fill { background: var(--danger); color: #fff; box-shadow: none; }
+button.primary.danger-fill:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 88%, black); }

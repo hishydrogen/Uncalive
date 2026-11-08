@@ -76,6 +76,8 @@ export interface LibraryItem {
   /** 번호가 붙은 첫 사진이나 동영상입니다. */
   cover?: LibraryMedia;
   media: LibraryMedia[];
+  /** 오프라인 페이지(index.html)가 있는지입니다. 받는 중에는 아직 없을 수 있습니다. */
+  hasPage: boolean;
 }
 
 export interface AppState {
@@ -123,7 +125,7 @@ export interface Commands {
   setSelection(kind: ListKind, ids: string[]): void;
   setChecked(kind: ListKind, ids: string[], value: boolean): void;
   checkUnsaved(kind: ListKind): void;
-  startDownload(kind: ListKind): void;
+  startDownload(kind: ListKind): Promise<void>;
   togglePause(): void;
   cancelDownload(): void;
   clearJob(): void;
@@ -144,6 +146,8 @@ export interface Commands {
   openLibraryFolder(): void;
   reloadLibrary(): void;
   searchLibrary(query: string): Record<string, string | null>;
+  redownloadPosts(ids: string[]): number;
+  trashPosts(ids: string[]): Promise<number>;
 }
 
 export type CommandName = keyof Commands;

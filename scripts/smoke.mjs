@@ -43,7 +43,7 @@ try {
   await snap('1-scraps');
   const sees = (selector) => page.locator(selector).first().waitFor({ timeout: 5000 }).then(() => true, () => false);
 
-  await page.click('.nav-item:has-text("주소 수집")');
+  await page.click('.nav-item:has-text("링크")');
   await page.waitForSelector('text=수집한 글이 없습니다');
   await page.click('button:has-text("주소 추가")');
   await page.fill('.dialog textarea', 'https://arca.live/b/test/123\narca.live/b/test/456 https://example.com/x');
@@ -55,13 +55,13 @@ try {
   await page.click('.dialog button.primary');
   await page.waitForSelector('td.title:has-text("글 1213")');
   check((await page.locator('tbody tr').count()) === 5, '주소로 더한 글이 목록에 보인다');
-  check(await sees('text=5개 선택됨'), '새로 더한 글은 골라져 있다');
+  check(await sees('.selection-summary strong:text-is("5개 선택")'), '새로 더한 글은 골라져 있다');
   await snap('3-collection');
 
   // Finder처럼 고르기: 누르기, ⌘(Ctrl) 누르기, Shift 누르기, 모두 선택, 해제, 끌어 고르기, 방향키
   const command = process.platform === 'darwin' ? 'Meta' : 'Control';
   const row = (n) => page.locator('tbody tr').nth(n).locator('td.title');
-  const selected = (count) => sees(`text=${count}개 선택됨`);
+  const selected = (count) => sees(count === 0 ? '.selection-summary.muted' : `.selection-summary strong:text-is("${count}개 선택")`);
   await row(0).click();
   check(await selected(1), '줄을 누르면 그 줄만 고른다');
   await row(2).click({ modifiers: [command] });
@@ -85,6 +85,17 @@ try {
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Shift+ArrowDown');
   check(await selected(2), '방향키로 옮기고 Shift로 넓힌다');
+
+  const handle = page.locator('th.author .col-resize');
+  const before = await page.locator('th.author').evaluate((th) => th.offsetWidth);
+  const grip = await handle.boundingBox();
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(grip.x + grip.width / 2 - 60, grip.y + grip.height / 2, { steps: 6 });
+  await page.mouse.up();
+  const after = await page.locator('th.author').evaluate((th) => th.offsetWidth);
+  check(Math.abs(after - before - 60) <= 2, `열 경계를 끌어 너비를 바꾼다 (${before} → ${after})`);
+  check(await selected(2), '열 너비를 바꿔도 선택은 그대로다');
 
   await page.keyboard.press('Delete');
   await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 3);

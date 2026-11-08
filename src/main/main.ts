@@ -26,7 +26,7 @@ const commands = new Set<CommandName>([
   'setSection', 'signIn', 'signOut', 'refreshScraps', 'stopLoading', 'addTargets', 'clearCollection', 'removeFromCollection',
   'removeCheckedFromCollection', 'removeFromCollectionMany', 'undoRemoveFromCollection', 'setSelection', 'setChecked', 'checkUnsaved', 'startDownload', 'togglePause', 'cancelDownload', 'clearJob', 'exportCSV',
   'setOptions', 'setUseAccountFolder', 'setAutoCheckHours', 'setAutoDownloadNew', 'setTheme', 'setNotifications', 'acceptTerms', 'quit', 'checkNow', 'chooseDestination', 'openPost',
-  'revealPost', 'revealFile', 'openLibraryFolder', 'reloadLibrary', 'searchLibrary',
+  'revealPost', 'revealFile', 'openLibraryFolder', 'reloadLibrary', 'searchLibrary', 'redownloadPosts', 'trashPosts',
 ]);
 
 let model: AppModel;
@@ -163,7 +163,7 @@ function buildMenu(): void {
       label: '보기',
       submenu: [
         { label: '스크랩', accelerator: 'CmdOrCtrl+1', click: send('scraps') },
-        { label: '주소 수집', accelerator: 'CmdOrCtrl+2', click: send('collection') },
+        { label: '링크', accelerator: 'CmdOrCtrl+2', click: send('collection') },
         { label: '다운로드', accelerator: 'CmdOrCtrl+3', click: send('downloads') },
         { label: '보관함', accelerator: 'CmdOrCtrl+4', click: send('library') },
         { label: '갤러리', accelerator: 'CmdOrCtrl+5', click: send('gallery') },

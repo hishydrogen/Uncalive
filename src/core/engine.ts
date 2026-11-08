@@ -299,6 +299,7 @@ export class ScrapEngine {
     const relativeFolder = store.reserveFolder(post, preferred, entry.channelName);
     const folder = resolveRelative(options.destination, relativeFolder);
     await fs.mkdir(folder, { recursive: true });
+    store.saveSoon();
 
     if (options.archive.webArchive) {
       try {
@@ -380,6 +381,7 @@ export class ScrapEngine {
         onEvent({ type: 'warning', text: `원본을 받지 못해 웹 표시용으로 저장했습니다: ${post.title} / ${file.fileName} (${file.fallbackReason ?? '사유 없음'})` });
       } else {
         store.setFile(relative, job.media.key, post.id);
+        store.saveSoon();
       }
       await this.sleep(options.mediaDelay, control);
     }));

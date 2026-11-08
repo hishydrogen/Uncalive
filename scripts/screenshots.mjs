@@ -127,7 +127,7 @@ try {
     await page.screenshot({ path: path.join(out, dark ? name.replace('.png', '-dark.png') : name) });
   };
   await page.waitForSelector('.sidebar');
-  await page.click('.nav-item:has-text("주소 수집")');
+  await page.click('.nav-item:has-text("링크")');
   await page.waitForSelector('td.title');
   await page.waitForTimeout(800);
   await shoot('collection.png');
@@ -139,7 +139,7 @@ try {
   await page.waitForSelector('.gallery-cell img');
   await page.waitForTimeout(1200);
   await shoot('gallery.png');
-  await page.click('.nav-item:has-text("주소 수집")');
+  await page.click('.nav-item:has-text("링크")');
   await page.click('button:has-text("주소 추가")');
   await page.fill('.dialog textarea', 'https://arca.live/b/travel?mode=best\nhttps://arca.live/b/photo/1004');
   await page.waitForTimeout(500);

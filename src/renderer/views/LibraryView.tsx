@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Archive, ChevronDown, ChevronRight, FileText, Play } from 'lucide-react';
+import { Archive, ChevronDown, ChevronRight, FileText, Loader2, Play } from 'lucide-react';
 import { call, mediaURL, usePreference } from '../api';
-import { categoriesOf, CategoryTabs, EmptyState, Header, SearchField, Segmented, Select, Spinner, useContextMenu, useVisible, type MenuItem } from '../components';
+import { categoriesOf, CategoryTabs, Dialog, EmptyState, Header, SearchField, Segmented, Select, showToast, Spinner, useContextMenu, useVisible, type MenuItem } from '../components';
+import { useCollectionKeys, useMarquee, useSelection } from '../selection';
 import type { AppState, ArchiveSource, LibraryItem } from '../../shared/types';
 
 type Layout = 'grid' | 'list';
@@ -35,7 +36,7 @@ export function channelsOf(library: LibraryItem[]): Array<{ id: string; name: st
 export function SourcePicker(props: { value?: ArchiveSource; onChange: (value?: ArchiveSource) => void }) {
   return (
     <Segmented<string> label="출처" value={props.value ?? ''} onChange={(value) => props.onChange(value === '' ? undefined : value as ArchiveSource)} options={[
-      { value: '', label: '전체' }, { value: '스크랩', label: '스크랩' }, { value: '주소 수집', label: '주소 수집' },
+      { value: '', label: '전체' }, { value: '스크랩', label: '스크랩' }, { value: '주소 수집', label: '링크' },
     ]} />
   );
 }
@@ -87,19 +88,55 @@ export function LibraryView({ state }: { state: AppState }) {
     return [...map.entries()].map(([id, items]) => ({ id, name: items[0].channelName, items })).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   }, [posts]);
 
-  const items = (item: LibraryItem): MenuItem[] => [
-    { label: '열기', onClick: () => void call('openPost', item.id) },
-    { label: '폴더에서 보기', onClick: () => void call('revealPost', item.id) },
-  ];
+  // 보이는 순서대로의 글 번호입니다. 접어 둔 채널의 글은 고를 수 없습니다.
+  const orderedIDs = useMemo(() => (channel !== '' ? posts : groups.filter((group) => !collapsed.has(group.id)).flatMap((group) => group.items)).map((item) => item.id), [posts, groups, collapsed, channel]);
+  const byID = useMemo(() => new Map(state.library.map((item) => [item.id, item])), [state.library]);
+  const busy = useMemo(() => new Set([...(state.job?.activeIDs ?? []), ...(state.job?.waitingIDs ?? [])]), [state.job?.activeIDs, state.job?.waitingIDs]);
+  const isMac = state.platform === 'darwin';
+  const selection = useSelection(orderedIDs);
+  const [trash, setTrash] = useState<string[]>();
+
+  /** 받는 중이라 오프라인 페이지가 아직 없는 글은 열지 않습니다. 여러 개는 다섯 개까지만 엽니다. */
+  const open = (ids: string[]) => {
+    const ready = ids.filter((id) => !(busy.has(id) && !byID.get(id)?.hasPage));
+    if (ready.length < ids.length) showToast('받는 중인 글은 다 받은 뒤에 열 수 있습니다');
+    if (ready.length > 5) showToast('한 번에 다섯 개까지만 엽니다');
+    ready.slice(0, 5).forEach((id) => void call('openPost', id));
+  };
+  const redownload = (ids: string[]) => {
+    void call('redownloadPosts', ids).then((count) => { if (count > 0) showToast(`${count}개를 다시 받습니다. 빠진 파일만 받습니다`); });
+  };
+  const marquee = useMarquee(selection, isMac, { ignore: '.group-header', onOpen: (id) => open([id]) });
+  useCollectionKeys(selection, () => (layout === 'grid' ? marquee.columns() : 1), isMac, { onOpen: open, onDelete: setTrash });
+  useEffect(() => {
+    if (selection.cursor) marquee.items.current.get(selection.cursor)?.scrollIntoView({ block: 'nearest' });
+  }, [selection.cursor]);
+
+  const menuItems = (item: LibraryItem): MenuItem[] => {
+    // 고르지 않은 글에서 메뉴를 열면 그 글만 고릅니다(Finder와 같습니다).
+    const targets = selection.now().has(item.id) ? [...selection.now()] : [item.id];
+    if (!selection.now().has(item.id)) selection.click(item.id, { toggle: false, range: false });
+    const many = targets.length > 1 ? ` (${targets.length}개)` : '';
+    return [
+      { label: `열기${many}`, onClick: () => open(targets) },
+      { label: '폴더에서 보기', onClick: () => void call('revealPost', item.id) },
+      { label: `다시 받기${many}`, onClick: () => redownload(targets) },
+      { label: `휴지통으로 옮기기${many}`, danger: true, onClick: () => setTrash(targets) },
+    ];
+  };
   const snippetOf = (item: LibraryItem) => (found ? found[item.id] ?? undefined : undefined);
+  const itemProps = (item: LibraryItem) => ({
+    item, snippet: snippetOf(item), selected: selection.selected.has(item.id), cursor: selection.cursor === item.id,
+    busy: busy.has(item.id), refer: marquee.register(item.id), onMenu: (event: React.MouseEvent) => menu.open(event, menuItems(item)), onOpen: () => open([item.id]),
+  });
 
   const renderItems = (list: LibraryItem[]) => layout === 'grid' ? (
     <div className="library-grid">
-      {list.map((item) => <LibraryCard key={item.id} item={item} snippet={snippetOf(item)} onMenu={(event) => menu.open(event, items(item))} />)}
+      {list.map((item) => <LibraryCard key={item.id} {...itemProps(item)} />)}
     </div>
   ) : (
     <div className="library-list">
-      {list.map((item) => <LibraryRow key={item.id} item={item} snippet={snippetOf(item)} onMenu={(event) => menu.open(event, items(item))} />)}
+      {list.map((item) => <LibraryRow key={item.id} {...itemProps(item)} />)}
     </div>
   );
 
@@ -113,10 +150,11 @@ export function LibraryView({ state }: { state: AppState }) {
       ? <EmptyState icon={<Archive size={44} />} title="표시할 글이 없습니다" description="다른 채널이나 카테고리, 출처를 선택해 보세요." />
       : <EmptyState icon={<Archive size={44} />} title={`‘${search}’에 대한 결과 없음`} description="다른 검색어를 입력해 보세요." />;
   } else if (channel !== '') {
-    body = <div className="scroll padded">{renderItems(posts)}</div>;
+    body = <div className="scroll padded selectable" ref={marquee.container} tabIndex={-1} onMouseDown={marquee.onMouseDown}>{renderItems(posts)}{marquee.box && <div className="marquee" style={marquee.box} />}</div>;
   } else {
     body = (
-      <div className="scroll">
+      <div className="scroll selectable" ref={marquee.container} tabIndex={-1} onMouseDown={marquee.onMouseDown}>
+        {marquee.box && <div className="marquee" style={marquee.box} />}
         {groups.map((group) => (
           <section key={group.id} className="group-section">
             <button className="group-header" onClick={() => {
@@ -145,6 +183,29 @@ export function LibraryView({ state }: { state: AppState }) {
       </Header>
       {categories.length > 0 && <CategoryTabs categories={categories} selection={category} onChange={setCategory} />}
       {body}
+      {selection.selected.size > 0 && (
+        <div className="selection-bar">
+          <strong>{selection.selected.size}개 선택</strong>
+          <span className="spacer" />
+          <button onClick={() => open([...selection.selected])}>열기</button>
+          <button onClick={() => redownload([...selection.selected])}>다시 받기</button>
+          <button className="danger" onClick={() => setTrash([...selection.selected])}>휴지통으로</button>
+        </div>
+      )}
+      {trash && (
+        <Dialog title={`${trash.length}개 글을 휴지통으로 옮길까요?`} onClose={() => setTrash(undefined)} width={440}>
+          <p className="muted">받은 사진과 동영상, 오프라인 페이지가 폴더째 휴지통으로 옮겨집니다. 휴지통에서 되살릴 수 있습니다. 받는 중인 글은 옮기지 않습니다.</p>
+          <div className="dialog-buttons">
+            <button onClick={() => setTrash(undefined)} autoFocus>취소</button>
+            <button className="primary danger-fill" onClick={() => {
+              const targets = trash;
+              setTrash(undefined);
+              selection.clear();
+              void call('trashPosts', targets).then((count) => showToast(`${count}개를 휴지통으로 옮겼습니다`));
+            }}>휴지통으로 옮기기</button>
+          </div>
+        </Dialog>
+      )}
       {menu.element}
     </div>
   );
@@ -168,28 +229,48 @@ export function Thumbnail(props: { path?: string; isVideo?: boolean; className: 
   );
 }
 
-function LibraryCard(props: { item: LibraryItem; snippet?: string; onMenu: (event: React.MouseEvent) => void }) {
+interface ItemProps {
+  item: LibraryItem;
+  snippet?: string;
+  selected: boolean;
+  cursor: boolean;
+  /** 받는 중이거나 차례를 기다리는 글입니다. */
+  busy: boolean;
+  refer: (element: HTMLElement | null) => void;
+  onMenu: (event: React.MouseEvent) => void;
+  onOpen: () => void;
+}
+
+function busyBadge(props: ItemProps) {
+  if (!props.busy) return null;
+  return <span className="busy-badge"><Loader2 size={12} className="spin" /> 받는 중</span>;
+}
+
+function LibraryCard(props: ItemProps) {
   const { item } = props;
   return (
-    <button className="library-card" title={item.title} onClick={() => void call('openPost', item.id)} onContextMenu={props.onMenu}>
+    <div ref={props.refer} data-id={item.id} role="option" aria-selected={props.selected} className={`library-card ${props.selected ? 'selected' : ''} ${props.cursor ? 'cursor' : ''}`} title={item.title} onContextMenu={props.onMenu}>
       <Thumbnail className="cover" path={item.cover?.path} isVideo={item.cover?.isVideo} fallback={<FileText size={34} className="muted" />} />
+      {busyBadge(props)}
       <span className="card-title">{item.title}</span>
       <span className="caption ellipsis">{props.snippet ?? metadata(item)}</span>
-    </button>
+    </div>
   );
 }
 
-function LibraryRow(props: { item: LibraryItem; snippet?: string; onMenu: (event: React.MouseEvent) => void }) {
+function LibraryRow(props: ItemProps) {
   const { item } = props;
+  const waiting = props.busy && !item.hasPage;
   return (
-    <div className="library-row" onContextMenu={props.onMenu} onDoubleClick={() => void call('openPost', item.id)}>
+    <div ref={props.refer} data-id={item.id} role="option" aria-selected={props.selected} className={`library-row ${props.selected ? 'selected' : ''} ${props.cursor ? 'cursor' : ''}`} onContextMenu={props.onMenu}>
       <Thumbnail className="cover small" path={item.cover?.path} isVideo={item.cover?.isVideo} fallback={<FileText size={22} className="muted" />} />
       <div className="row-text">
         <span className="ellipsis">{item.title}</span>
         <span className="caption ellipsis">{metadata(item)}</span>
         {props.snippet && <span className="caption faint ellipsis">{props.snippet}</span>}
       </div>
-      <button onClick={() => void call('openPost', item.id)}>열기</button>
+      {busyBadge(props)}
+      <button onClick={props.onOpen} disabled={waiting} title={waiting ? '다 받은 뒤에 열 수 있습니다' : undefined}>열기</button>
     </div>
   );
 }

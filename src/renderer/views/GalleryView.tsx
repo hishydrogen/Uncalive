@@ -5,6 +5,7 @@ import { call, mediaURL } from '../api';
 import { categoriesOf, CategoryTabs, EmptyState, Header, SearchField, Segmented, Select, useContextMenu } from '../components';
 import type { AppState, ArchiveSource, LibraryItem, LibraryMedia } from '../../shared/types';
 import { channelsOf, SourcePicker, Thumbnail } from './LibraryView';
+import { useCollectionKeys, useMarquee, useSelection } from '../selection';
 
 type Kind = 'all' | 'images' | 'videos';
 
@@ -50,6 +51,24 @@ export function GalleryView({ state }: { state: AppState }) {
     .flatMap((item) => item.media.map((file) => ({ ...file, item })))
     .filter((file) => kind === 'all' || (kind === 'videos') === file.isVideo), [items, category, kind]);
 
+  const paths = useMemo(() => media.map((file) => file.path), [media]);
+  const isMac = state.platform === 'darwin';
+  const selection = useSelection(paths);
+  const openAt = (path: string) => {
+    const index = paths.indexOf(path);
+    if (index >= 0) setPreview(index);
+  };
+  const marquee = useMarquee(selection, isMac, { onOpen: openAt });
+  useCollectionKeys(selection, marquee.columns, isMac, { onOpen: (ids) => openAt(ids[0]), onSpace: openAt });
+  useEffect(() => {
+    if (selection.cursor) marquee.items.current.get(selection.cursor)?.scrollIntoView({ block: 'nearest' });
+  }, [selection.cursor]);
+  // 크게 보기를 닫으면 마지막으로 보던 파일을 지금 항목으로 삼습니다.
+  const closePreview = () => {
+    if (preview !== undefined && media[preview]) selection.click(media[preview].path, { toggle: false, range: false });
+    setPreview(undefined);
+  };
+
   return (
     <div className="screen">
       <Header title="갤러리" subtitle={`${media.length}개`}>
@@ -62,27 +81,34 @@ export function GalleryView({ state }: { state: AppState }) {
       {media.length === 0 ? (
         <EmptyState icon={<Images size={44} />} title="표시할 미디어가 없습니다" description="다운로드한 이미지와 동영상이 여기에 모입니다." />
       ) : (
-        <div className="scroll padded">
+        <div className="scroll padded selectable" ref={marquee.container} tabIndex={-1} onMouseDown={marquee.onMouseDown}>
+          {marquee.box && <div className="marquee" style={marquee.box} />}
           <div className="gallery-grid">
-            {media.map((file, index) => (
-              <button
+            {media.map((file) => (
+              <div
                 key={file.path}
-                className="gallery-cell"
+                ref={marquee.register(file.path)}
+                data-id={file.path}
+                role="option"
+                aria-selected={selection.selected.has(file.path)}
+                className={`gallery-cell ${selection.selected.has(file.path) ? 'selected' : ''} ${selection.cursor === file.path ? 'cursor' : ''}`}
                 title={file.item.title}
-                onClick={() => setPreview(index)}
-                onKeyDown={(event) => { if (event.key === ' ') { event.preventDefault(); setPreview(index); } }}
-                onContextMenu={(event) => menu.open(event, [
-                  { label: '글 열기', onClick: () => void call('openPost', file.item.id) },
-                  { label: '폴더에서 보기', onClick: () => void call('revealFile', file.path) },
-                ])}
+                onContextMenu={(event) => {
+                  if (!selection.now().has(file.path)) selection.click(file.path, { toggle: false, range: false });
+                  menu.open(event, [
+                    { label: '크게 보기', onClick: () => openAt(file.path) },
+                    { label: '글 열기', onClick: () => void call('openPost', file.item.id) },
+                    { label: '폴더에서 보기', onClick: () => void call('revealFile', file.path) },
+                  ]);
+                }}
               >
                 <Thumbnail className="cell-media" path={file.path} isVideo={file.isVideo} fallback={null} />
-              </button>
+              </div>
             ))}
           </div>
         </div>
       )}
-      {preview !== undefined && media[preview] && <Lightbox media={media} index={preview} onIndex={setPreview} onClose={() => setPreview(undefined)} />}
+      {preview !== undefined && media[preview] && <Lightbox media={media} index={preview} onIndex={setPreview} onClose={closePreview} />}
       {menu.element}
     </div>
   );

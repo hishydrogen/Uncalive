@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, Bookmark, CheckCircle2, Circle, Clock, Download, Link2, Loader2, Plus, RefreshCw, SlidersHorizontal, Square, Trash2, UserCircle2, X } from 'lucide-react';
 import { call, formatShortDate, qualityTitles, usePreference } from '../api';
 import { EmptyState, Header, SearchField, Select, showToast, Spinner, useContextMenu, usePresence } from '../components';
-import { modifiersOf, useSelection } from '../selection';
+import { useMarquee, useSelection } from '../selection';
 import type { AppState, ListKind, PostStatus, ScrapEntry } from '../../shared/types';
 import { AddURLsDialog } from './AddURLsDialog';
 import { OptionsPanel } from './OptionsPanel';
@@ -64,6 +64,12 @@ export function optionsSummary(state: AppState): string {
   return parts.join(' · ');
 }
 
+type ColumnKey = 'channel' | 'category' | 'author' | 'date';
+const defaultWidths: Record<ColumnKey, number> = { channel: 110, category: 92, author: 110, date: 92 };
+const resizable: Array<{ key: ColumnKey; label: string }> = [
+  { key: 'channel', label: '채널' }, { key: 'category', label: '카테고리' }, { key: 'author', label: '작성자' }, { key: 'date', label: '작성일' },
+];
+
 type LiveStatus = PostStatus | 'active' | 'waiting';
 
 const statusInfo: Record<LiveStatus, { label: string; detail: string }> = {
@@ -73,6 +79,33 @@ const statusInfo: Record<LiveStatus, { label: string; detail: string }> = {
   active: { label: '받는 중', detail: '지금 받고 있습니다.' },
   waiting: { label: '대기 중', detail: '다운로드 대기열에서 차례를 기다리고 있습니다.' },
 };
+
+/**
+ * 고른 글이 받으면 어떻게 되는지 나눠 보여 줍니다. 새로 받을 글, 빠진 파일만 이어 받을 글, 이미 받아 다시 확인만 할 글입니다.
+ * 거르기 때문에 목록에 안 보이는 고른 글이 있으면 함께 알립니다.
+ */
+function SelectionSummary(props: { state: AppState; entries: ScrapEntry[]; checked: Set<string>; visible: string[]; isMac: boolean }) {
+  const { state, entries, checked } = props;
+  if (checked.size === 0) {
+    return <span className="selection-summary muted">글을 고르세요 · {props.isMac ? '⌘A' : 'Ctrl+A'}로 모두 고르거나 끌어서 고를 수 있습니다</span>;
+  }
+  const counts = { new: 0, incomplete: 0, saved: 0 };
+  for (const entry of entries) if (checked.has(entry.id)) counts[statusOf(state, entry)] += 1;
+  const visible = new Set(props.visible);
+  const hidden = [...checked].filter((id) => !visible.has(id)).length;
+  const parts = [
+    counts.new > 0 && <span key="new" title="아직 받지 않은 글입니다.">새로 받기 <b>{counts.new}</b></span>,
+    counts.incomplete > 0 && <span key="incomplete" className="warn" title="빠진 파일만 이어서 받습니다.">이어 받기 <b>{counts.incomplete}</b></span>,
+    counts.saved > 0 && <span key="saved" title="이미 받은 글입니다. 바뀐 파일만 확인하고, 있는 파일은 다시 받지 않습니다.">다시 확인 <b>{counts.saved}</b></span>,
+  ].filter(Boolean);
+  return (
+    <span className="selection-summary">
+      <strong>{checked.size}개 선택</strong>
+      {parts.map((part, index) => <span key={index} className="summary-part">{part}</span>)}
+      {hidden > 0 && <span className="summary-part hidden-note" title="채널, 상태, 기간, 검색 조건 때문에 목록에 보이지 않는 글입니다.">목록에 안 보이는 글 {hidden}개 포함</span>}
+    </span>
+  );
+}
 
 /** 글 상태를 아이콘으로 보여 줍니다. 마우스를 올리면 뜻을 알려 줍니다. */
 function StatusIcon({ status }: { status: LiveStatus }) {
@@ -87,7 +120,7 @@ function StatusIcon({ status }: { status: LiveStatus }) {
   return <span className={`status-icon ${status}`} title={`${info.label} · ${info.detail}`} aria-label={info.label}>{icon}</span>;
 }
 
-/** 스크랩과 주소 수집이 함께 쓰는 글 목록 화면입니다. */
+/** 스크랩과 링크가 함께 쓰는 글 목록 화면입니다. */
 export function EntryListView(props: { state: AppState; kind: ListKind; filters: Filters; onFilters: (filters: Filters) => void }) {
   const { state, kind, filters } = props;
   const list = state[kind];
@@ -126,9 +159,39 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
   const jobActive = state.job !== undefined && ['running', 'paused', 'waitingForChallenge'].includes(state.job.status);
 
   const isMac = state.platform === 'darwin';
+
+  // 열 너비: 열의 왼쪽 경계를 끌어 바꿉니다. 제목은 남는 너비를 모두 씁니다.
+  const [widths, setWidths] = usePreference<Record<ColumnKey, number>>('columnWidths', defaultWidths);
+  const startResize = (event: React.PointerEvent, key: ColumnKey) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const start = widths[key] ?? defaultWidths[key];
+    const onMove = (move: PointerEvent) => {
+      const width = Math.round(Math.min(420, Math.max(52, start - (move.clientX - startX))));
+      setWidths({ ...widths, [key]: width });
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.classList.remove('resizing');
+    };
+    document.body.classList.add('resizing');
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
   const live = useMemo(() => ({ active: new Set(state.job?.activeIDs ?? []), waiting: new Set(state.job?.waitingIDs ?? []) }), [state.job?.activeIDs, state.job?.waitingIDs]);
   const visibleIDs = useMemo(() => visible.map((entry) => entry.id), [visible]);
-  const selection = useSelection(kind, visibleIDs, list.checked);
+  const selection = useSelection(visibleIDs, { kind, checked: list.checked });
+  // 마우스: 줄을 누르면 고르고, 누른 채 끌면 상자 안의 줄을 고릅니다. 두 번 누르면 받은 글은 열고, 아니면 원문을 엽니다.
+  const marquee = useMarquee(selection, state.platform === 'darwin', {
+    onOpen: (id) => {
+      const entry = list.entries.find((item) => item.id === id);
+      if (!entry) return;
+      if (state.records[id]) void call('openPost', id); else window.open(entry.url);
+    },
+  });
+  const rows = marquee.items;
   const checked = selection.selected;
   const allVisibleChecked = visible.length > 0 && visible.every((entry) => checked.has(entry.id));
   const checkedCount = checked.size;
@@ -187,77 +250,6 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
     if (selection.cursor) rows.current.get(selection.cursor)?.scrollIntoView({ block: 'nearest' });
   }, [selection.cursor]);
 
-  // 마우스: 줄을 누르면 고르고, 누른 채 끌면 상자 안의 줄을 고릅니다. 가장자리로 끌면 저절로 굴러갑니다.
-  const wrap = useRef<HTMLDivElement>(null);
-  const rows = useRef(new Map<string, HTMLTableRowElement>());
-  const [box, setBox] = useState<{ top: number; left: number; width: number; height: number }>();
-
-  const onPointerDown = (event: React.MouseEvent) => {
-    if (event.button !== 0) return;
-    const element = event.target as HTMLElement;
-    if (element.closest('input, button, a, select, th')) return;
-    const container = wrap.current;
-    if (!container) return;
-    event.preventDefault();
-    container.focus({ preventScroll: true });
-    const modifiers = modifiersOf(event, isMac);
-    const additive = modifiers.toggle || modifiers.range;
-    const base = additive ? new Set(checked) : new Set<string>();
-    const rowID = element.closest('tr')?.dataset.id;
-    const origin = container.getBoundingClientRect();
-    const start = { x: event.clientX - origin.left + container.scrollLeft, y: event.clientY - origin.top + container.scrollTop };
-    let pointer = { x: event.clientX, y: event.clientY };
-    let moved = false;
-    let frame = 0;
-    let latest = base;
-
-    const update = () => {
-      const rect = container.getBoundingClientRect();
-      // 가장자리 가까이 끌면 그만큼 빠르게 굴립니다.
-      const edge = 36;
-      if (pointer.y < rect.top + edge) container.scrollTop -= Math.ceil((rect.top + edge - pointer.y) / 3);
-      else if (pointer.y > rect.bottom - edge) container.scrollTop += Math.ceil((pointer.y - (rect.bottom - edge)) / 3);
-      const now = { x: pointer.x - rect.left + container.scrollLeft, y: pointer.y - rect.top + container.scrollTop };
-      const top = Math.min(start.y, now.y);
-      const bottom = Math.max(start.y, now.y);
-      const left = Math.max(0, Math.min(start.x, now.x));
-      setBox({ top, left, width: Math.abs(now.x - start.x), height: bottom - top });
-      const next = new Set(base);
-      rows.current.forEach((row, id) => {
-        if (row.offsetTop < bottom && row.offsetTop + row.offsetHeight > top) next.add(id);
-      });
-      latest = next;
-      selection.preview(next);
-      frame = requestAnimationFrame(update);
-    };
-
-    const onMove = (move: MouseEvent) => {
-      pointer = { x: move.clientX, y: move.clientY };
-      if (!moved && Math.hypot(move.clientX - event.clientX, move.clientY - event.clientY) > 4) {
-        moved = true;
-        frame = requestAnimationFrame(update);
-      }
-    };
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      cancelAnimationFrame(frame);
-      setBox(undefined);
-      if (moved) {
-        selection.commit(latest);
-        // 끌기를 마친 줄을 지금 줄로 삼아, 방향키가 거기서 이어지게 합니다.
-        const rect = container.getBoundingClientRect();
-        const y = pointer.y - rect.top + container.scrollTop;
-        let end: string | undefined;
-        rows.current.forEach((row, id) => { if (row.offsetTop <= y && y < row.offsetTop + row.offsetHeight) end = id; });
-        if (end) selection.setCursor(end);
-      }
-      else if (rowID) selection.click(rowID, modifiers);
-      else if (!additive) selection.clear();
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  };
 
   let body: React.ReactNode;
   if (isScraps && state.login === 'loggedOut' && list.entries.length === 0 && !loading) {
@@ -285,7 +277,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
       <EmptyState
         icon={<Link2 size={44} />}
         title="수집한 글이 없습니다"
-        description={<>개별 글 주소나 채널, 개념글, 검색 결과 등의 목록 주소를 추가해 글을 모을 수 있습니다.<br />스크랩 목록과는 별도로 관리됩니다.</>}
+        description={<>개별 글 주소나 채널, 개념글, 검색 결과 등의 목록 주소를 추가해 글을 모을 수 있습니다.<br />스크랩과는 따로 관리됩니다.</>}
         actions={<button className="primary" onClick={() => setShowAdd(true)}>주소 추가</button>}
       />
     );
@@ -310,18 +302,31 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
           <span className="spacer" />
           <span className="caption">{visible.length}개 표시</span>
         </div>
-        <div className="table-wrap" ref={wrap} tabIndex={-1} onMouseDown={onPointerDown} aria-multiselectable>
+        <div className="table-wrap" ref={marquee.container} tabIndex={-1} onMouseDown={marquee.onMouseDown} aria-multiselectable>
           <table className="entries">
+            <colgroup>
+              <col style={{ width: 38 }} />
+              <col />
+              {resizable.map((column) => <col key={column.key} style={{ width: widths[column.key] ?? defaultWidths[column.key] }} />)}
+              <col style={{ width: isScraps ? 52 : 64 }} />
+            </colgroup>
             <thead>
               <tr>
                 <th className="check">
                   <input type="checkbox" aria-label="보이는 글 모두 선택" checked={allVisibleChecked} onChange={(event) => (event.target.checked ? selection.selectAll() : selection.clear())} />
                 </th>
                 <th>제목</th>
-                <th className="channel">채널</th>
-                <th className="category">카테고리</th>
-                <th className="author">작성자</th>
-                <th className="date">작성일</th>
+                {resizable.map((column) => (
+                  <th key={column.key} className={column.key}>
+                    <span
+                      className="col-resize"
+                      title="끌어서 너비를 바꿉니다. 두 번 누르면 처음 너비로 돌아갑니다."
+                      onPointerDown={(event) => startResize(event, column.key)}
+                      onDoubleClick={() => setWidths({ ...widths, [column.key]: defaultWidths[column.key] })}
+                    />
+                    {column.label}
+                  </th>
+                ))}
                 <th className="status">상태</th>
               </tr>
             </thead>
@@ -332,7 +337,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
                   <tr
                     key={entry.id}
                     data-id={entry.id}
-                    ref={(row) => { if (row) rows.current.set(entry.id, row); else rows.current.delete(entry.id); }}
+                    ref={marquee.register(entry.id)}
                     className={`${checked.has(entry.id) ? 'checked' : ''} ${selection.cursor === entry.id ? 'cursor' : ''}`}
                     aria-selected={checked.has(entry.id)}
                     onContextMenu={(event) => {
@@ -367,7 +372,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
               })}
             </tbody>
           </table>
-          {box && <div className="marquee" style={box} />}
+          {marquee.box && <div className="marquee" style={marquee.box} />}
         </div>
         <div className="action-bar">
           <Select<string> label="선택" value="" onChange={(value) => {
@@ -378,10 +383,12 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
             { value: '', label: '선택…' }, { value: 'all', label: `모두 선택 (${isMac ? '⌘A' : 'Ctrl+A'})` }, { value: 'none', label: '선택 해제 (Esc)' }, { value: 'unsaved', label: '안 받은 글만 선택' },
           ]} />
           {!isScraps && <button onClick={() => void remove([...checked])} disabled={checkedCount === 0} title={isMac ? 'Delete' : 'Delete'}>고른 글 빼기</button>}
-          <button className="plain summary" title="다운로드 옵션 보기" onClick={() => setShowOptions(true)}>{optionsSummary(state)}</button>
+          <SelectionSummary state={state} entries={list.entries} checked={checked} visible={visibleIDs} isMac={isMac} />
           <span className="spacer" />
-          <span className="muted nowrap">{checkedCount}개 선택됨</span>
-          <button className="primary" onClick={() => void call('startDownload', kind)} disabled={checkedCount === 0 || loading}>
+          <button className="primary" onClick={() => {
+            if (loading) showToast('목록 불러오기를 멈추고 받기 시작합니다');
+            void call('startDownload', kind);
+          }} disabled={checkedCount === 0}>
             <Download size={15} /> {jobActive ? '대기열에 추가' : '다운로드 시작'}
           </button>
         </div>
@@ -391,7 +398,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
 
   return (
     <div className="screen">
-      <Header title={isScraps ? '스크랩' : '주소 수집'} subtitle={subtitle}>
+      <Header title={isScraps ? '스크랩' : '링크'} subtitle={subtitle}>
         {list.entries.length > 0 && <SearchField value={filters.search} onChange={(search) => set({ search })} placeholder="제목, 작성자 검색" />}
         {loading ? (
           <button onClick={() => void call('stopLoading')}><Square size={14} /> 중지</button>

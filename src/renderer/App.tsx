@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Archive, ArrowDownCircle, Bookmark, Images, Link2, Settings, UserCircle2 } from 'lucide-react';
 import { call, useAppState } from './api';
 import { Spinner, ToastHost } from './components';
@@ -14,6 +14,10 @@ export function App() {
   const state = useAppState();
   // 목록마다 거르기 조건을 따로 기억합니다. 다른 화면에 다녀와도 유지됩니다.
   const [filters, setFilters] = useState<Record<'scraps' | 'collection', Filters>>({ scraps: initialFilters(), collection: initialFilters() });
+  // 창 전체 위에 그리는 크게 보기 같은 요소도 운영체제에 맞게 그리도록 html에도 표시합니다.
+  useEffect(() => {
+    if (state?.platform) document.documentElement.classList.add(`platform-${state.platform}`);
+  }, [state?.platform]);
   if (!state) return <Spinner label="불러오는 중입니다" />;
 
   return (
@@ -67,7 +71,7 @@ function Sidebar({ state }: { state: AppState }) {
       <nav>
         <div className="nav-indicator" ref={indicator} aria-hidden />
         {item('scraps', '스크랩', <Bookmark size={17} />, state.newScrapCount)}
-        {item('collection', '주소 수집', <Link2 size={17} />, state.collection.entries.length)}
+        {item('collection', '링크', <Link2 size={17} />, state.collection.entries.length)}
         {item('downloads', '다운로드', <ArrowDownCircle size={17} />, state.job && ['running', 'paused', 'waitingForChallenge'].includes(state.job.status) ? '진행 중' : undefined)}
         {item('library', '보관함', <Archive size={17} />, Object.keys(state.records).length)}
         {item('gallery', '갤러리', <Images size={17} />)}

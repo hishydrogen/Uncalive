@@ -102,6 +102,11 @@ export class ResumeStore {
     return folder;
   }
 
+  /** 기록에서 글을 뺍니다. 폴더는 따로 지웁니다. */
+  remove(postID: string): void {
+    delete this.state.posts[postID];
+  }
+
   setFile(relative: string, key: string, postID: string): void {
     const record = this.state.posts[postID];
     if (record) record.files[key] = relative;
@@ -114,6 +119,17 @@ export class ResumeStore {
       record.updatedAt = isoDate();
     }
     await this.save();
+  }
+
+  private saveTimer?: ReturnType<typeof setTimeout>;
+
+  /** 받는 도중에도 보관함과 갤러리가 받은 파일을 보여 줄 수 있도록, 잠깐 모았다가 기록합니다. */
+  saveSoon(): void {
+    if (this.saveTimer) return;
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = undefined;
+      void this.save().catch(() => undefined);
+    }, 1000);
   }
 
   async save(): Promise<void> {

@@ -15,10 +15,10 @@ export function DownloadView({ state }: { state: AppState }) {
         <EmptyState
           icon={<ArrowDownCircle size={44} />}
           title="진행 중인 다운로드가 없습니다"
-          description="스크랩이나 주소 수집에서 글을 고른 뒤 다운로드를 시작하세요."
+          description="스크랩이나 링크에서 글을 고른 뒤 다운로드를 시작하세요."
           actions={<>
             <button onClick={() => void call('setSection', 'scraps')}>스크랩</button>
-            <button onClick={() => void call('setSection', 'collection')}>주소 수집</button>
+            <button onClick={() => void call('setSection', 'collection')}>링크</button>
           </>}
         />
       </div>

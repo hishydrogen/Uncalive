@@ -29,7 +29,7 @@ const logLimit = 1000;
 
 const extensionOf = (file: string) => path.extname(file).slice(1).toLowerCase();
 
-/** 스크랩과 주소 수집이 각자 가지는 글 목록입니다. */
+/** 스크랩과 링크가 각자 가지는 글 목록입니다. */
 class EntryList {
   entries: ScrapEntry[] = [];
   checked = new Set<string>();
@@ -279,6 +279,7 @@ export class AppModel {
       id: post.record.id, title: post.record.title, folder: post.record.folder, completed: post.record.completed,
       updatedAt: post.record.updatedAt, channel: post.channel, channelName: post.channelName, category: post.category,
       author: post.author, source: post.source, fileCount: Object.keys(post.record.files).length, cover: media[0], media,
+      hasPage: existsSync(path.join(resolveRelative(this.libraryRoot, post.record.folder), 'index.html')),
     };
   }
 
@@ -427,12 +428,15 @@ export class AppModel {
     this.changed(kind);
   }
 
-  /** 새 글만 더합니다. 새로 더한 글을 돌려줍니다. */
-  private merge(fresh: ScrapEntry[], list: EntryList, atFront = false): ScrapEntry[] {
+  /**
+   * 새 글만 더합니다. 새로 더한 글을 돌려줍니다.
+   * 저절로 불러온 글(스크랩 목록)은 고르지 않습니다. 사용자가 직접 더한 링크만 select로 골라 둡니다.
+   */
+  private merge(fresh: ScrapEntry[], list: EntryList, atFront = false, select = false): ScrapEntry[] {
     const known = new Set(list.entries.map((entry) => entry.id));
     const added = fresh.filter((entry) => !known.has(entry.id));
     list.entries = atFront ? [...added, ...list.entries] : [...list.entries, ...added];
-    added.filter((entry) => this.status(entry) !== 'saved').forEach((entry) => list.checked.add(entry.id));
+    if (select) added.filter((entry) => this.status(entry) !== 'saved').forEach((entry) => list.checked.add(entry.id));
     this.changed(list.kind);
     return added;
   }
@@ -444,7 +448,7 @@ export class AppModel {
   async exportCSV(kind: ListKind, ids: string[]): Promise<void> {
     const list = this.list(kind);
     const result = await dialog.showSaveDialog(this.window!, {
-      defaultPath: kind === 'scraps' ? '스크랩 목록.csv' : '주소 수집 목록.csv',
+      defaultPath: kind === 'scraps' ? '스크랩 목록.csv' : '링크 목록.csv',
       filters: [{ name: 'CSV', extensions: ['csv'] }],
     });
     if (result.canceled || !result.filePath) return;
@@ -601,9 +605,9 @@ export class AppModel {
     app.setBadgeCount(0);
   }
 
-  // MARK: - 주소 수집
+  // MARK: - 링크
 
-  /** 주소 수집 목록은 보관함마다 따로 있습니다. 맥판과 같은 파일을 씁니다. */
+  /** 링크 목록은 보관함마다 따로 있습니다. 맥판과 같은 파일을 씁니다. */
   private get collectionFile(): string {
     return path.join(this.libraryRoot, '.uncalive', 'collection.json');
   }
@@ -619,14 +623,8 @@ export class AppModel {
     }
     if (file !== this.collectionFile) return;
     this.collection.entries = entries;
-    // 받은 기록을 읽은 뒤에 안 받은 글만 고릅니다. 먼저 고르면 받은 글까지 골라집니다.
     this.collection.checked = new Set();
     this.changed('collection');
-    this.reloadRecords(() => {
-      if (this.collection.entries !== entries) return;
-      this.collection.checked = new Set(entries.filter((entry) => this.status(entry) !== 'saved').map((entry) => entry.id));
-      this.changed('collection');
-    });
   }
 
   private saveCollection(): void {
@@ -703,7 +701,7 @@ export class AppModel {
       if (target.type === 'post') posts.push(target.entry);
       else lists.push(target.url);
     }
-    this.merge(posts, this.collection);
+    this.merge(posts, this.collection, false, true);
     this.saveCollection();
     // 화면에서 막지만, 혹시 들어와도 읽고 있는 작업을 방해하지 않습니다.
     if (lists.length === 0 || this.isBusy) return;
@@ -719,7 +717,7 @@ export class AppModel {
         try {
           await this.engine.fetchList(list, scope, this.options.pageDelay, control, (event) => {
             if (event.type !== 'listPageRead') return;
-            this.merge(event.entries, this.collection);
+            this.merge(event.entries, this.collection, false, true);
             this.collection.load = { kind: 'loading', page: event.page, highestPage: scope.lastPage };
             this.changed('collection');
           });
@@ -737,7 +735,12 @@ export class AppModel {
 
   // MARK: - 다운로드
 
-  startDownload(kind: ListKind): void {
+  async startDownload(kind: ListKind): Promise<void> {
+    // 목록을 불러오는 중이면 멈추고 받기 시작합니다. 페이지를 읽는 창이 하나라 둘을 함께 할 수 없습니다.
+    if (this.scraps.isLoading || this.collection.isLoading) {
+      this.listControl?.cancel();
+      await this.listTask;
+    }
     const list = this.list(kind);
     const selected = list.entries.filter((entry) => list.checked.has(entry.id));
     const wasRunning = this.job?.isActive === true;
@@ -779,6 +782,7 @@ export class AppModel {
           await this.engine.download(batch.entries, options, job.control, (event) => {
             job.handle(event);
             if (event.type === 'postFinished') this.reloadRecords();
+            if (event.type === 'mediaSaved' || event.type === 'mediaStarted') this.scheduleLiveRefresh();
             this.changed('job');
           });
         }
@@ -802,6 +806,18 @@ export class AppModel {
       this.window?.flashFrame(true);
       this.changed('job');
     })();
+  }
+
+  private liveRefresh?: NodeJS.Timeout;
+
+  /** 받는 동안 보관함과 갤러리를 가끔 다시 읽어, 이미 받은 파일을 바로 보여 줍니다. */
+  private scheduleLiveRefresh(): void {
+    if (this.liveRefresh) return;
+    this.liveRefresh = setTimeout(() => {
+      this.liveRefresh = undefined;
+      this.reloadRecords();
+      if (this.section === 'library' || this.section === 'gallery') this.reloadLibrary();
+    }, 1500);
   }
 
   /** 끝난 다운로드의 기록을 지웁니다. 받는 중이면 지우지 않습니다. */
@@ -907,12 +923,9 @@ export class AppModel {
     this.records = {};
     this.library = [];
     void this.loadCollection();
-    this.reloadRecords(() => {
-      for (const list of [this.scraps, this.collection]) {
-        list.checked = new Set(list.entries.filter((entry) => this.status(entry) !== 'saved').map((entry) => entry.id));
-      }
-      this.changed('scraps', 'collection');
-    });
+    for (const list of [this.scraps, this.collection]) list.checked = new Set();
+    this.changed('scraps', 'collection');
+    this.reloadRecords();
     this.reloadLibrary();
     this.changed('records', 'library');
   }
@@ -958,6 +971,59 @@ export class AppModel {
       this.isLoadingLibrary = false;
       this.changed('library');
     });
+  }
+
+  /** 보관함에서 고른 글을 다시 받습니다. 받은 파일은 그대로 쓰고 빠진 파일만 받습니다. */
+  redownloadPosts(ids: string[]): number {
+    const wanted = new Set(ids);
+    const groups = new Map<ArchiveSource, ScrapEntry[]>();
+    for (const post of this.library) {
+      if (!wanted.has(post.record.id)) continue;
+      const record = post.record;
+      const entry: ScrapEntry = {
+        id: record.id, channel: post.channel, channelName: post.channelName, title: record.title,
+        url: record.url ?? `https://arca.live/b/${post.channel}/${record.id}`,
+        author: post.author, createdAt: post.createdAt, category: post.category,
+      };
+      const source = post.source ?? '스크랩';
+      groups.set(source, [...(groups.get(source) ?? []), entry]);
+    }
+    let count = 0;
+    groups.forEach((entries, source) => {
+      count += entries.length;
+      void this.startDownloadEntries(entries, source);
+    });
+    return count;
+  }
+
+  /**
+   * 보관함에서 고른 글을 운영체제 휴지통으로 옮깁니다. 휴지통에서 되살릴 수 있습니다.
+   * 받는 중인 글은 건드리지 않습니다. 옮긴 글 수를 돌려줍니다.
+   */
+  async trashPosts(ids: string[]): Promise<number> {
+    const busy = new Set([...(this.job?.isActive ? this.job.activeIDs : []), ...(this.job?.isActive ? this.job.waitingIDs : [])]);
+    const root = this.libraryRoot;
+    const store = await ResumeStore.open(root);
+    let moved = 0;
+    for (const id of ids) {
+      if (busy.has(id)) continue;
+      const record = store.record(id);
+      if (!record) continue;
+      const folder = resolveRelative(root, record.folder);
+      try {
+        if (existsSync(folder)) await shell.trashItem(folder);
+      } catch (error) {
+        log(`휴지통으로 옮기지 못함: ${errorMessage(error)}`);
+        continue;
+      }
+      store.remove(id);
+      await fs.rm(path.join(root, '.uncalive', 'text', `${id}.txt`), { force: true });
+      moved += 1;
+    }
+    if (moved > 0) await store.save();
+    this.reloadRecords();
+    this.reloadLibrary();
+    return moved;
   }
 
   /** 본문과 댓글까지 찾습니다. 찾은 글의 번호와 검색어 주변 글자를 돌려줍니다. */
