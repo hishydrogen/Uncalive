@@ -32,12 +32,12 @@ export function AddURLsDialog(props: { state: AppState; onClose: () => void }) {
 
   return (
     <Dialog title="주소 추가" onClose={props.onClose}>
-      <p className="muted">아카라이브 게시글 주소나 목록 주소를 한 줄에 하나씩 붙여 넣으세요. 채널, 개념글, 카테고리, 검색 결과, 작성자 글 목록 주소를 모두 지원합니다.</p>
+      <p className="muted">아카라이브 게시글 주소나 목록 주소를 한 줄에 하나씩 붙여 넣으세요. 채널, 개념글, 카테고리, 검색 결과, 작성자 글 목록을 모두 지원합니다.</p>
       <textarea autoFocus className="mono" rows={7} value={text} onChange={(event) => setText(event.target.value)} spellCheck={false} />
       <span className="caption">인식된 주소 {targets.length}개</span>
 
       {blocked ? (
-        <p className="warning"><AlertTriangle size={15} /> 지금은 다운로드나 목록 불러오기가 진행 중이라 목록 주소를 읽을 수 없습니다. 끝난 뒤 다시 추가하거나, 글 주소만 남겨 주세요.</p>
+        <p className="warning"><AlertTriangle size={15} /> 다운로드나 목록 불러오기가 진행 중일 때는 목록 주소를 불러올 수 없습니다. 작업이 끝난 뒤 다시 추가하거나 개별 글 주소만 입력해 주세요.</p>
       ) : hasList && (
         <fieldset className="group">
           <legend>목록을 불러올 범위</legend>
@@ -52,8 +52,8 @@ export function AddURLsDialog(props: { state: AppState; onClose: () => void }) {
                 <NumberField label="끝 페이지" value={rangeEnd} min={1} max={100_000} onChange={setRangeEnd} /> 페이지까지
               </>
             )}
-            {mode === 'days' && <>최근 <NumberField label="일 수" value={days} min={1} max={36_500} onChange={setDays} /> 일 이내의 글</>}
-            {mode === 'all' && <span className="caption"><AlertTriangle size={13} /> 규모가 큰 채널은 페이지 수가 매우 많을 수 있습니다. 불러오는 중에 언제든 중지할 수 있으며, 그때까지 불러온 글은 목록에 남습니다.</span>}
+            {mode === 'days' && <>최근 <NumberField label="일 수" value={days} min={1} max={36_500} onChange={setDays} />일 이내의 글</>}
+            {mode === 'all' && <span className="caption"><AlertTriangle size={13} /> 규모가 큰 채널은 페이지가 매우 많을 수 있습니다. 불러오는 도중 언제든 중지할 수 있으며, 그때까지 불러온 글은 목록에 그대로 남습니다.</span>}
           </div>
         </fieldset>
       )}

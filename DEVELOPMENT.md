@@ -54,7 +54,7 @@ npm run build && node scripts/smoke.mjs   # 빌드한 앱을 띄워 화면 확�
 
 ```bash
 npm run build
-npx electron-builder --mac --arm64 --x64
+npx electron-builder --mac --arm64
 npx electron-builder --win --x64 --arm64
 npx electron-builder --linux --x64 --arm64
 ```

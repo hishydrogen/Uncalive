@@ -75,7 +75,7 @@ img, video { max-width: 100%; height: auto; }
 <body>
 <header>
 <h1>${escape(post.title)}</h1>
-<div class="meta">${details.join(' · ')}</div>
+<div class="meta">${details.join(' | ')}</div>
 </header>
 <main>
 ${content}

@@ -84,7 +84,7 @@ function Sidebar({ state }: { state: AppState }) {
           {state.login === 'loggedIn' && (
             <>
               <strong title={state.username}>{state.username ?? '로그인됨'}</strong>
-              {state.loginID && <span className="caption" title="보관함은 이 아이디로 나눕니다">@{state.loginID}</span>}
+              {state.loginID && <span className="caption" title="계정별 보관함을 구분하는 로그인 아이디입니다">@{state.loginID}</span>}
               <button className="link" onClick={() => void call('signOut')} disabled={state.job?.status === 'running' || state.job?.status === 'paused'}>로그아웃</button>
             </>
           )}
@@ -97,7 +97,7 @@ function Sidebar({ state }: { state: AppState }) {
           {state.login === 'unknown' && (
             <>
               <strong>{state.username ?? '아카라이브'}</strong>
-              <span className="caption">로그인 상태 확인 중…</span>
+              <span className="caption">로그인 확인 중…</span>
             </>
           )}
         </div>

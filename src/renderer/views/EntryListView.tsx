@@ -61,7 +61,7 @@ export function optionsSummary(state: AppState): string {
   ].filter(Boolean);
   const parts = [qualityTitles[options.quality], kinds.length === 0 ? '받을 파일 없음' : kinds.join(', ')];
   if (options.archive.offlineHTML) parts.push('오프라인 페이지');
-  return parts.join(' · ');
+  return parts.join(', ');
 }
 
 type ColumnKey = 'channel' | 'category' | 'author' | 'date';
@@ -74,20 +74,20 @@ type LiveStatus = PostStatus | 'active' | 'waiting';
 
 const statusInfo: Record<LiveStatus, { label: string; detail: string }> = {
   new: { label: '안 받음', detail: '아직 받지 않은 글입니다.' },
-  incomplete: { label: '일부만 받음', detail: '받지 못했거나 원본 대신 압축본으로 받은 파일이 있습니다. 다시 받으면 그 파일만 이어서 받습니다.' },
+  incomplete: { label: '일부만 받음', detail: '일부 파일을 받지 못했거나 압축본으로 대체된 글입니다. 다시 받으면 빠진 파일만 이어서 받습니다.' },
   saved: { label: '받음', detail: '모든 파일을 받았습니다.' },
-  active: { label: '받는 중', detail: '지금 받고 있습니다.' },
+  active: { label: '받는 중', detail: '지금 다운로드하고 있습니다.' },
   waiting: { label: '대기 중', detail: '다운로드 대기열에서 차례를 기다리고 있습니다.' },
 };
 
 /**
- * 고른 글이 받으면 어떻게 되는지 나눠 보여 줍니다. 새로 받을 글, 빠진 파일만 이어 받을 글, 이미 받아 다시 확인만 할 글입니다.
- * 거르기 때문에 목록에 안 보이는 고른 글이 있으면 함께 알립니다.
+ * 체크한 글이 받으면 어떻게 되는지 나눠 보여 줍니다. 새로 받을 글, 빠진 파일만 이어받을 글, 이미 받아 다시 확인만 할 글입니다.
+ * 거르기 조건 때문에 목록에 보이지 않는 글이 있으면 함께 알립니다.
  */
 function SelectionSummary(props: { state: AppState; entries: ScrapEntry[]; checked: Set<string>; visible: string[]; isMac: boolean }) {
   const { state, entries, checked } = props;
   if (checked.size === 0) {
-    return <span className="selection-summary muted">다운로드할 글에 체크하세요 · 줄을 고른 뒤 스페이스 바로도 체크할 수 있습니다</span>;
+    return <span className="selection-summary muted" title="줄을 선택한 뒤 스페이스 바를 눌러도 체크할 수 있습니다.">다운로드할 글을 체크하세요</span>;
   }
   const counts = { new: 0, incomplete: 0, saved: 0 };
   for (const entry of entries) if (checked.has(entry.id)) counts[statusOf(state, entry)] += 1;
@@ -95,14 +95,14 @@ function SelectionSummary(props: { state: AppState; entries: ScrapEntry[]; check
   const hidden = [...checked].filter((id) => !visible.has(id)).length;
   const parts = [
     counts.new > 0 && <span key="new" title="아직 받지 않은 글입니다.">새로 받기 <b>{counts.new}</b></span>,
-    counts.incomplete > 0 && <span key="incomplete" className="warn" title="빠진 파일만 이어서 받습니다.">이어 받기 <b>{counts.incomplete}</b></span>,
-    counts.saved > 0 && <span key="saved" title="이미 받은 글입니다. 바뀐 파일만 확인하고, 있는 파일은 다시 받지 않습니다.">다시 확인 <b>{counts.saved}</b></span>,
+    counts.incomplete > 0 && <span key="incomplete" className="warn" title="빠진 파일만 이어서 받습니다.">이어받기 <b>{counts.incomplete}</b></span>,
+    counts.saved > 0 && <span key="saved" title="이미 받은 글입니다. 기존 파일은 건너뛰고 바뀐 파일만 확인합니다.">다시 확인 <b>{counts.saved}</b></span>,
   ].filter(Boolean);
   return (
     <span className="selection-summary">
-      <strong>{checked.size}개 체크</strong>
+      <strong>{checked.size}개 체크됨</strong>
       {parts.map((part, index) => <span key={index} className="summary-part">{part}</span>)}
-      {hidden > 0 && <span className="summary-part hidden-note" title="채널, 상태, 기간, 검색 조건 때문에 목록에 보이지 않는 글입니다.">목록에 안 보이는 글 {hidden}개 포함</span>}
+      {hidden > 0 && <span className="summary-part hidden-note" title="채널, 상태, 기간, 검색 필터 때문에 현재 목록에 보이지 않는 글입니다.">숨겨진 글 {hidden}개 포함</span>}
     </span>
   );
 }
@@ -117,7 +117,7 @@ function StatusIcon({ status }: { status: LiveStatus }) {
     active: <Loader2 size={15} className="spin" />,
     waiting: <Clock size={15} />,
   }[status];
-  return <span className={`status-icon ${status}`} title={`${info.label} · ${info.detail}`} aria-label={info.label}>{icon}</span>;
+  return <span className={`status-icon ${status}`} title={`${info.label}: ${info.detail}`} aria-label={info.label}>{icon}</span>;
 }
 
 /** 스크랩과 링크가 함께 쓰는 글 목록 화면입니다. */
@@ -154,7 +154,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
 
   const loading = list.load.kind === 'loading';
   const subtitle = list.load.kind === 'loading' && list.load.page > 0
-    ? `${list.load.page}${list.load.highestPage ? ` / ${list.load.highestPage}` : ''}페이지 읽는 중 · ${list.entries.length}개`
+    ? `${list.load.page}${list.load.highestPage ? `/${list.load.highestPage}` : ''}페이지 불러오는 중 (${list.entries.length}개)`
     : list.entries.length > 0 ? `${list.entries.length}개` : '';
   const jobActive = state.job !== undefined && ['running', 'paused', 'waitingForChallenge'].includes(state.job.status);
 
@@ -200,14 +200,14 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
   const allVisibleChecked = visible.length > 0 && visible.every((entry) => checked.has(entry.id));
   const checkedCount = checked.size;
 
-  /** 체크를 바꿉니다. 여러 글의 체크를 한꺼번에 풀면 되돌릴 수 있게 알립니다. */
+  /** 체크를 바꿉니다. 여러 글의 체크를 한꺼번에 해제하면 되돌릴 수 있게 알립니다. */
   const setChecks = useCallback((ids: string[], value: boolean) => {
     const before = checks.set(ids, value);
     const lost = [...before].filter((id) => !checks.now().has(id)).length;
-    if (!value && lost > 1) showToast(`${lost}개의 체크를 풀었습니다`, { label: '실행 취소', run: () => checks.commit(before) });
+    if (!value && lost > 1) showToast(`${lost}개 체크를 해제했습니다`, { label: '실행 취소', run: () => checks.commit(before) });
   }, [checks]);
 
-  /** 스페이스 바와 메뉴입니다. 강조한 글이 모두 체크되어 있으면 풀고, 아니면 모두 체크합니다. */
+  /** 스페이스 바와 메뉴입니다. 선택한 글이 모두 체크되어 있으면 해제하고, 아니면 모두 체크합니다. */
   const toggleHighlighted = useCallback(() => {
     const targets = [...selection.now()];
     if (targets.length === 0 && selection.cursor) targets.push(selection.cursor);
@@ -215,14 +215,14 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
     setChecks(targets, !targets.every((id) => checks.now().has(id)));
   }, [selection, checks, setChecks]);
 
-  /** 목록에서 빼고, 실행 취소를 알림에 붙입니다. */
+  /** 목록에서 삭제하고, 실행 취소를 알림에 붙입니다. */
   const remove = useCallback(async (ids: string[]) => {
     if (ids.length === 0) return;
     const count = await call('removeFromCollectionMany', ids);
-    if (count > 0) showToast(`${count}개를 목록에서 뺐습니다`, { label: '실행 취소', run: () => void call('undoRemoveFromCollection') });
+    if (count > 0) showToast(`${count}개를 목록에서 삭제했습니다`, { label: '실행 취소', run: () => void call('undoRemoveFromCollection') });
   }, []);
 
-  // 키보드: ⌘A(Ctrl+A) 모두 강조, Esc 강조 풀기, 방향키 이동, 스페이스 바 강조한 글 체크, Delete 빼기, ⌘Z 되돌리기, Enter 다운로드.
+  // 키보드: ⌘A(Ctrl+A) 모두 선택, Esc 선택 해제, 방향키 이동, 스페이스 바 선택한 글 체크, Delete 삭제, ⌘Z 되돌리기, Enter 다운로드.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (showAdd || event.defaultPrevented) return;
@@ -237,7 +237,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
       } else if (command && key.toLowerCase() === 'z' && !event.shiftKey) {
         if (isScraps) return;
         event.preventDefault();
-        void call('undoRemoveFromCollection').then((count) => { if (count > 0) showToast(`${count}개를 되돌렸습니다`); });
+        void call('undoRemoveFromCollection').then((count) => { if (count > 0) showToast(`${count}개를 복구했습니다`); });
       } else if (key === 'Escape') {
         selection.clear();
       } else if (key === 'ArrowDown' || key === 'ArrowUp') {
@@ -252,14 +252,14 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
         event.preventDefault();
         if (isScraps) {
           setChecks(targets, false);
-          showToast('스크랩은 아카라이브에서만 지울 수 있어, 강조한 글의 체크만 풀었습니다');
+          showToast('스크랩은 아카라이브 웹에서만 삭제할 수 있어 체크만 해제했습니다');
         } else {
           selection.clear();
           void remove(targets);
         }
       } else if (key === 'Enter' && target?.tagName !== 'BUTTON') {
         if (checks.now().size > 0) void call('startDownload', kind);
-        else showToast('다운로드할 글에 체크하세요. 강조한 글은 스페이스 바로 체크합니다');
+        else showToast('다운로드할 글을 먼저 체크해 주세요. 선택한 줄에서 스페이스 바를 눌러도 됩니다');
       }
     };
     window.addEventListener('keydown', onKey);
@@ -278,7 +278,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
       <EmptyState
         icon={<UserCircle2 size={44} />}
         title="로그인이 필요합니다"
-        description={<>아카라이브 계정으로 로그인하면 스크랩 목록을 불러옵니다.<br />비밀번호는 아카라이브 로그인 화면에서 직접 입력하며, 앱에는 저장되지 않습니다.</>}
+        description={<>아카라이브 계정으로 로그인하면 스크랩한 글을 불러옵니다.<br />비밀번호는 아카라이브 로그인 창에서 직접 입력하며, 앱에는 저장되지 않습니다.</>}
         actions={<button className="primary" onClick={() => void call('signIn')}>로그인</button>}
       />
     );
@@ -293,12 +293,12 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
     );
   } else if (list.entries.length === 0) {
     if (loading || (isScraps && state.login === 'unknown')) body = <Spinner label="목록을 불러오는 중입니다" />;
-    else if (isScraps) body = <EmptyState icon={<Bookmark size={44} />} title="스크랩한 글이 없습니다" description="아카라이브에서 글을 스크랩한 뒤 새로고침하세요." />;
+    else if (isScraps) body = <EmptyState icon={<Bookmark size={44} />} title="스크랩한 글이 없습니다" description="아카라이브에서 글을 스크랩한 뒤 새로고침을 눌러 주세요." />;
     else body = (
       <EmptyState
         icon={<Link2 size={44} />}
-        title="수집한 글이 없습니다"
-        description={<>개별 글 주소나 채널, 개념글, 검색 결과 등의 목록 주소를 추가해 글을 모을 수 있습니다.<br />스크랩과는 따로 관리됩니다.</>}
+        title="추가한 글이 없습니다"
+        description={<>게시글 주소나 채널, 개념글, 검색 결과 같은 목록 주소를 추가해 글을 모을 수 있습니다.<br />여기서 추가한 글은 스크랩 목록과 따로 관리됩니다.</>}
         actions={<button className="primary" onClick={() => setShowAdd(true)}>주소 추가</button>}
       />
     );
@@ -341,7 +341,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
                   <th key={column.key} className={column.key}>
                     <span
                       className="col-resize"
-                      title="끌어서 너비를 바꿉니다. 두 번 누르면 처음 너비로 돌아갑니다."
+                      title="끌어서 열 너비를 조절합니다. 두 번 클릭하면 기본 너비로 돌아갑니다."
                       onPointerDown={(event) => startResize(event, column.key)}
                       onDoubleClick={() => setWidths({ ...widths, [column.key]: defaultWidths[column.key] })}
                     />
@@ -362,16 +362,16 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
                     className={`${checked.has(entry.id) ? 'checked' : ''} ${highlighted.has(entry.id) ? 'highlighted' : ''} ${selection.cursor === entry.id ? 'cursor' : ''}`}
                     aria-selected={highlighted.has(entry.id)}
                     onContextMenu={(event) => {
-                      // 강조하지 않은 줄에서 메뉴를 열면 그 줄만 강조합니다(Finder와 같습니다). 메뉴는 강조한 글에 적용됩니다.
+                      // 선택하지 않은 줄에서 메뉴를 열면 그 줄만 선택합니다(Finder와 같습니다). 메뉴는 선택한 글에 적용됩니다.
                       const targets = selection.now().has(entry.id) ? [...selection.now()] : [entry.id];
                       if (!selection.now().has(entry.id)) selection.click(entry.id, { toggle: false, range: false });
                       const many = targets.length > 1 ? ` (${targets.length}개)` : '';
                       const allChecked = targets.every((id) => checks.now().has(id));
                       menu.open(event, [
-                        { label: allChecked ? `체크 풀기${many}` : `체크하기${many}`, onClick: () => setChecks(targets, !allChecked) },
+                        { label: allChecked ? `체크 해제${many}` : `체크${many}`, onClick: () => setChecks(targets, !allChecked) },
                         { label: '원문 열기', onClick: () => window.open(entry.url) },
                         ...(state.records[entry.id] ? [{ label: '받은 글 열기', onClick: () => void call('openPost', entry.id) }] : []),
-                        ...(!isScraps ? [{ label: `목록에서 빼기${many}`, danger: true, onClick: () => { selection.clear(); void remove(targets); } }] : []),
+                        ...(!isScraps ? [{ label: `목록에서 삭제${many}`, danger: true, onClick: () => { selection.clear(); void remove(targets); } }] : []),
                       ]);
                     }}
                   >
@@ -387,7 +387,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
                       <span className="status-cell">
                       <StatusIcon status={live.active.has(entry.id) ? 'active' : live.waiting.has(entry.id) ? 'waiting' : status} />
                       {!isScraps && (
-                        <button className="plain remove" title="목록에서 빼기" aria-label="목록에서 빼기" onClick={() => void remove([entry.id])}><X size={14} /></button>
+                        <button className="plain remove" title="목록에서 삭제" aria-label="목록에서 삭제" onClick={() => void remove([entry.id])}><X size={14} /></button>
                       )}
                       </span>
                     </td>
@@ -405,15 +405,15 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
             if (value === 'unsaved') setChecks(visible.filter((entry) => statusOf(state, entry) !== 'saved').map((entry) => entry.id), true);
             if (value === 'highlighted') setChecks([...selection.now()], true);
           }} options={[
-            { value: '', label: '체크…' }, { value: 'all', label: '보이는 글 모두 체크' }, { value: 'unsaved', label: '안 받은 글만 체크' },
-            ...(highlighted.size > 0 ? [{ value: 'highlighted', label: `강조한 글 체크 (${highlighted.size}개, 스페이스 바)` }] : []),
-            { value: 'none', label: '체크 모두 풀기' },
+            { value: '', label: '체크 선택' }, { value: 'all', label: '보이는 글 모두 체크' }, { value: 'unsaved', label: '안 받은 글만 체크' },
+            ...(highlighted.size > 0 ? [{ value: 'highlighted', label: `선택한 글 체크 (${highlighted.size}개, 스페이스 바)` }] : []),
+            { value: 'none', label: '체크 모두 해제' },
           ]} />
-          {!isScraps && <button onClick={() => { const targets = [...selection.now()]; selection.clear(); void remove(targets); }} disabled={highlighted.size === 0} title="강조한 글을 목록에서 뺍니다 (Delete)">강조한 글 빼기</button>}
+          {!isScraps && <button onClick={() => { const targets = [...selection.now()]; selection.clear(); void remove(targets); }} disabled={highlighted.size === 0} title="선택한 글을 목록에서 삭제합니다 (Delete)">선택 삭제</button>}
           <SelectionSummary state={state} entries={list.entries} checked={checked} visible={visibleIDs} isMac={isMac} />
           <span className="spacer" />
           <button className="primary" onClick={() => {
-            if (loading) showToast('목록 불러오기를 멈추고 받기 시작합니다');
+            if (loading) showToast('목록 불러오기를 멈추고 다운로드를 시작합니다');
             void call('startDownload', kind);
           }} disabled={checkedCount === 0}>
             <Download size={15} /> {jobActive ? '대기열에 추가' : '다운로드 시작'}
@@ -430,7 +430,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
         {loading ? (
           <button onClick={() => void call('stopLoading')}><Square size={14} /> 중지</button>
         ) : isScraps ? (
-          <button onClick={() => void call('refreshScraps')} disabled={state.isBusy || state.login === 'loggedOut'} title="새로고침 (Ctrl+R)"><RefreshCw size={14} /> 새로고침</button>
+          <button onClick={() => void call('refreshScraps')} disabled={state.isBusy || state.login === 'loggedOut'} title={`새로고침 (${isMac ? '⌘R' : 'Ctrl+R'})`}><RefreshCw size={14} /> 새로고침</button>
         ) : (
           <>
             <button onClick={() => setShowAdd(true)}><Plus size={14} /> 주소 추가</button>

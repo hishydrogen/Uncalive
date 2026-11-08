@@ -1,3 +1,4 @@
-/* Finder, Launchpad, Dock, 메뉴 막대에 보이는 이름입니다. Info.plist의 번들 이름(Uncalive)은 영문으로 둡니다. */
+/* Finder, Launchpad, Dock, 메뉴 막대, 정보 창에 보이는 이름과 저작권 표기입니다. Info.plist의 번들 이름(Uncalive)은 영문으로 둡니다. */
 "CFBundleDisplayName" = "언카라이브";
 "CFBundleName" = "언카라이브";
+"NSHumanReadableCopyright" = "© 2026 Hishydrogen";

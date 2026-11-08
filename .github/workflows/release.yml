@@ -23,7 +23,7 @@ jobs:
           - name: macOS
             # 리퀴드 글래스 아이콘(AppIcon.icon)을 만들려면 Xcode 26 이상의 actool이 필요합니다.
             os: macos-26
-            command: npx electron-builder --mac --arm64 --x64 --publish never
+            command: npx electron-builder --mac --arm64 --publish never
           - name: Windows
             os: windows-latest
             command: npx electron-builder --win --x64 --arm64 --publish never

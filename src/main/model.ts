@@ -270,7 +270,7 @@ export class AppModel {
     const state: Partial<AppState> = {};
     if (has('meta')) {
       Object.assign(state, {
-        platform: process.platform, version: app.getVersion(), material: this.material, section: this.section, login: this.login,
+        platform: process.platform, arch: process.arch, version: app.getVersion(), material: this.material, section: this.section, login: this.login,
         username: this.username, loginID: this.loginID, useAccountFolder: this.useAccountFolder, options: this.options,
         libraryRoot: this.libraryRoot, isBusy: this.isBusy, newScrapCount: this.newScrapCount,
         lastCheck: this.lastCheck, autoCheckHours: this.autoCheckHours, autoDownloadNew: this.autoDownloadNew, theme: this.theme, notifications: this.notifications, termsAccepted: this.termsAccepted,
@@ -324,7 +324,7 @@ export class AppModel {
   }
 
   testNotification(): void {
-    this.notifyUser('알림이 켜졌습니다', '다운로드를 마치거나 확인이 필요할 때 이렇게 알려 드립니다. 설정에서 끌 수 있습니다.', 'settings', true);
+    this.notifyUser('알림이 켜져 있습니다', '다운로드가 완료되거나 보안 확인이 필요할 때 이렇게 알려 드립니다. 설정에서 언제든 끌 수 있습니다.', 'settings', true);
   }
 
   private started = false;
@@ -602,7 +602,7 @@ export class AppModel {
 
   /** 알림에는 개수만 넣고 글 제목은 넣지 않습니다. */
   private notify(count: number): void {
-    this.notifyUser(`새 스크랩 ${count}개를 찾았습니다`, this.autoDownloadNew ? '자동으로 받기 시작합니다.' : '스크랩 목록에서 확인하세요.', 'scraps', true);
+    this.notifyUser(`새 스크랩 ${count}개를 찾았습니다`, this.autoDownloadNew ? '자동으로 다운로드를 시작합니다.' : '스크랩 목록에서 확인해 보세요.', 'scraps', true);
   }
 
   /**
@@ -819,13 +819,13 @@ export class AppModel {
         }
         job.status = 'finished';
         const failed = job.failedPosts + job.incompletePosts;
-        this.notifyUser('다운로드를 마쳤습니다', `글 ${job.finishedPosts}개를 처리했습니다${failed > 0 ? ` (일부만 받은 글 ${failed}개)` : ''}. 파일 ${job.savedFiles}개를 저장했습니다.`, 'downloads');
+        this.notifyUser('다운로드를 완료했습니다', `글 ${job.finishedPosts}개와 파일 ${job.savedFiles}개를 처리했습니다${failed > 0 ? ` (일부 누락 ${failed}개)` : ''}.`, 'downloads');
       } catch (error) {
         if (error instanceof CancellationError || job.control.isCancelled) {
           job.status = 'cancelled';
         } else {
           job.status = 'failed';
-          this.notifyUser('다운로드가 멈췄습니다', errorMessage(error), 'downloads');
+          this.notifyUser('다운로드가 중단되었습니다', errorMessage(error), 'downloads');
           job.failure = errorMessage(error);
           if (error instanceof UncaliveError && error.code === 'loginRequired') this.login = 'loggedOut';
         }
@@ -886,7 +886,7 @@ export class AppModel {
       this.browser.showChallenge();
       if (this.job?.status === 'running') {
         this.job.status = 'waitingForChallenge';
-        this.notifyUser('보안 확인이 필요합니다', '열린 창에서 Cloudflare 확인을 마치면 다운로드가 이어집니다.', 'downloads');
+        this.notifyUser('보안 확인이 필요합니다', '열린 창에서 Cloudflare 보안 확인을 완료하면 다운로드가 이어집니다.', 'downloads');
       }
     } else {
       this.browser.hide();

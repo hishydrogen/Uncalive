@@ -31,7 +31,7 @@ try {
   };
 
   // 처음 실행 안내: 동의하기 전에는 확인을 누를 수 없고, 동의하면 앱이 시작됩니다.
-  await page.waitForSelector('.dialog:has-text("언카라이브를 쓰기 전에")', { timeout: 15000 });
+  await page.waitForSelector('.dialog:has-text("언카라이브를 시작하기 전에")', { timeout: 15000 });
   check(await page.locator('.dialog button.primary:has-text("확인")').isDisabled(), '처음 실행 안내는 동의하기 전에 확인을 막는다');
   await snap('0-terms');
   await page.check('.terms-agree input');
@@ -44,7 +44,7 @@ try {
   const sees = (selector) => page.locator(selector).first().waitFor({ timeout: 5000 }).then(() => true, () => false);
 
   await page.click('.nav-item:has-text("링크")');
-  await page.waitForSelector('text=수집한 글이 없습니다');
+  await page.waitForSelector('text=추가한 글이 없습니다');
   await page.click('button:has-text("주소 추가")');
   await page.fill('.dialog textarea', 'https://arca.live/b/test/123\narca.live/b/test/456 https://example.com/x');
   check(await sees('text=인식된 주소 2개'), '붙여 넣은 글 주소를 알아본다');
@@ -55,7 +55,7 @@ try {
   await page.click('.dialog button.primary');
   await page.waitForSelector('td.title:has-text("글 1213")');
   check((await page.locator('tbody tr').count()) === 5, '주소로 더한 글이 목록에 보인다');
-  const checkedCount = (count) => sees(count === 0 ? '.selection-summary.muted' : `.selection-summary strong:text-is("${count}개 체크")`);
+  const checkedCount = (count) => sees(count === 0 ? '.selection-summary.muted' : `.selection-summary strong:text-is("${count}개 체크됨")`);
   const lit = () => page.locator('tbody tr.highlighted').count();
   check(await checkedCount(5), '새로 더한 링크는 체크되어 있다');
   await snap('3-collection');
@@ -111,12 +111,12 @@ try {
 
   await page.keyboard.press('Delete');
   await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 3);
-  check(await sees('.toast:has-text("2개를 목록에서 뺐습니다")'), 'Delete로 강조한 글을 빼고 알린다');
+  check(await sees('.toast:has-text("2개를 목록에서 삭제했습니다")'), 'Delete로 강조한 글을 빼고 알린다');
   await page.click('.toast button:has-text("실행 취소")');
   await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 5);
   check(true, '실행 취소로 되돌린다');
 
-  await page.click('button[aria-label="목록에서 빼기"] >> nth=0');
+  await page.click('button[aria-label="목록에서 삭제"] >> nth=0');
   await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 4);
   check(true, '줄 끝 버튼으로 글을 뺀다');
   await page.keyboard.press(`${command}+Z`);

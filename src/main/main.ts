@@ -177,9 +177,15 @@ function buildMenu(): void {
       label: '도움말',
       submenu: [
         { label: '사용 설명서', click: () => void shell.openExternal('https://github.com/hishydrogen/Uncalive#readme') },
-        { label: '최신 버전 확인', click: () => void shell.openExternal('https://github.com/hishydrogen/Uncalive/releases/latest') },
+        { label: '릴리스 노트 및 업데이트 확인', click: () => void shell.openExternal('https://github.com/hishydrogen/Uncalive/releases/latest') },
+        { label: '문제 제보 및 건의', click: () => void shell.openExternal('https://github.com/hishydrogen/Uncalive/issues') },
         { type: 'separator' },
-        { label: `${appName} ${app.getVersion()}`, enabled: false },
+        ...(isMac ? [
+          { label: `${appName} ${app.getVersion()} (${process.arch})`, enabled: false },
+          { label: '© 2026 Hishydrogen', enabled: false },
+        ] : [
+          { label: `${appName} 정보`, click: () => app.showAboutPanel() },
+        ]),
       ],
     },
   ];
@@ -252,6 +258,15 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(async () => {
     log('=== 개발 빌드 시작 ===');
+    app.setAboutPanelOptions({
+      applicationName: appName,
+      applicationVersion: app.getVersion(),
+      version: process.arch,
+      copyright: '© 2026 Hishydrogen',
+      credits: '아카라이브 스크랩 및 게시글 오프라인 보관 프로그램\nMIT License (github.com/hishydrogen/Uncalive)',
+      website: 'https://github.com/hishydrogen/Uncalive',
+      iconPath: resource('icon.png'),
+    });
     const defaultFolder = isDev ? 'Uncalive Dev' : 'Uncalive';
     // 시험용으로 따로 띄울 때는 예전 앱의 설정을 읽지 않습니다.
     if (!process.env.UNCALIVE_PROFILE_DIR) await importLegacySettings(isDev ? 'io.github.hishydrogen.uncalive.dev' : 'io.github.hishydrogen.uncalive');

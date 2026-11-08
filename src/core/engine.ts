@@ -289,7 +289,7 @@ export class ScrapEngine {
     const post = parsePost(loaded.html, entry.url);
 
     if (post.embeds.length > 0) {
-      onEvent({ type: 'warning', text: `${post.title}: 외부 임베드 ${post.embeds.length}개(YouTube 등)는 내려받을 수 없어 오프라인 페이지에 링크로 남겨 둡니다.` });
+      onEvent({ type: 'warning', text: `${post.title}: 외부 임베드 콘텐츠 ${post.embeds.length}개(YouTube 등)는 파일로 받을 수 없어 오프라인 페이지에 링크로 남겼습니다.` });
     }
 
     let preferred = folderName(post, options);
@@ -378,7 +378,7 @@ export class ScrapEngine {
       if (wantedOriginal && !file.usedOriginal) {
         // 기록하지 않아서 다음 실행 때 원본을 다시 시도합니다.
         outcome.downgraded += 1;
-        onEvent({ type: 'warning', text: `원본을 받지 못해 웹 표시용으로 저장했습니다: ${post.title} / ${file.fileName} (${file.fallbackReason ?? '사유 없음'})` });
+        onEvent({ type: 'warning', text: `원본을 받지 못해 웹 표시용으로 대체했습니다: ${post.title} / ${file.fileName} (${file.fallbackReason ?? '원인 미상'})` });
       } else {
         store.setFile(relative, job.media.key, post.id);
         store.saveSoon();

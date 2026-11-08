@@ -91,7 +91,7 @@ export function formatShortDate(iso?: string): string {
 export const qualityTitles = { original: '원본', balanced: '균형', display: '웹 표시용' } as const;
 
 export const qualityDetails = {
-  original: '모든 파일을 원본으로 받습니다. 원본 서버의 속도 제한(약 200KB/s) 때문에 가장 느립니다.',
-  balanced: '가로 1280px보다 큰 이미지만 원본으로 받습니다. 그 이하인 이미지는 해상도가 같은 압축본으로 받아 속도가 훨씬 빠릅니다.',
-  display: '모든 이미지를 웹 표시용 압축본으로 받습니다. 가장 빠르지만, 큰 이미지는 가로 1280px 크기로 줄어듭니다.',
+  original: '모든 파일을 원본 화질로 받습니다. 원본 서버의 속도 제한(약 200KB/s) 때문에 가장 느립니다.',
+  balanced: '가로 1280px보다 큰 이미지만 원본으로 받습니다. 그 이하인 이미지는 원본과 해상도가 같은 압축본으로 받아 속도가 훨씬 빠릅니다.',
+  display: '모든 이미지를 웹 표시용 압축본으로 받습니다. 가장 빠르지만 큰 이미지는 가로 1280px 크기로 줄어듭니다.',
 } as const;

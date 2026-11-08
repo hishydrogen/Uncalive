@@ -178,7 +178,7 @@ export class UncaliveError extends Error {
   static unsupportedMedia(type: string) { return new UncaliveError('unsupportedMedia', `지원하지 않는 파일 형식입니다: ${type}`); }
   static destinationUnavailable(reason: string) { return new UncaliveError('destinationUnavailable', `저장 위치를 사용할 수 없습니다: ${reason}`); }
   static serverResized(expected: number, actual: number) {
-    return new UncaliveError('serverResized', `서버에서 축소된 이미지 응답: 긴 변 ${expected}px → ${actual}px`);
+    return new UncaliveError('serverResized', `서버가 축소된 이미지를 보냈습니다 (긴 변 ${expected}px → ${actual}px)`);
   }
   static rangeNotSupported() { return new UncaliveError('rangeNotSupported', '서버가 나눠 받기를 지원하지 않습니다.'); }
   static incompleteFile() { return new UncaliveError('incompleteFile', '파일을 끝까지 받지 못했습니다.'); }

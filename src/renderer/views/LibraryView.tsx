@@ -42,12 +42,11 @@ export function SourcePicker(props: { value?: ArchiveSource; onChange: (value?: 
 }
 
 function metadata(item: LibraryItem): string {
-  const parts = [item.channelName];
-  if (item.category) parts.push(item.category);
+  const channel = item.category ? `${item.channelName} (${item.category})` : item.channelName;
+  const parts = [channel];
   if (item.author) parts.push(item.author);
-  parts.push(`파일 ${item.fileCount}개`);
-  if (!item.completed) parts.push('일부만 받음');
-  return parts.join(' · ');
+  parts.push(`파일 ${item.fileCount}개${item.completed ? '' : ' (일부만 받음)'}`);
+  return parts.join(', ');
 }
 
 export function LibraryView({ state }: { state: AppState }) {
@@ -99,12 +98,12 @@ export function LibraryView({ state }: { state: AppState }) {
   /** 받는 중이라 오프라인 페이지가 아직 없는 글은 열지 않습니다. 여러 개는 다섯 개까지만 엽니다. */
   const open = (ids: string[]) => {
     const ready = ids.filter((id) => !(busy.has(id) && !byID.get(id)?.hasPage));
-    if (ready.length < ids.length) showToast('받는 중인 글은 다 받은 뒤에 열 수 있습니다');
-    if (ready.length > 5) showToast('한 번에 다섯 개까지만 엽니다');
+    if (ready.length < ids.length) showToast('다운로드 중인 글은 완료된 뒤에 열 수 있습니다');
+    if (ready.length > 5) showToast('한 번에 5개까지만 열 수 있습니다');
     ready.slice(0, 5).forEach((id) => void call('openPost', id));
   };
   const redownload = (ids: string[]) => {
-    void call('redownloadPosts', ids).then((count) => { if (count > 0) showToast(`${count}개를 다시 받습니다. 빠진 파일만 받습니다`); });
+    void call('redownloadPosts', ids).then((count) => { if (count > 0) showToast(`글 ${count}개의 빠진 파일을 다시 받습니다`); });
   };
   const marquee = useMarquee(selection, isMac, { ignore: '.group-header', onOpen: (id) => open([id]) });
   useCollectionKeys(selection, () => (layout === 'grid' ? marquee.columns() : 1), isMac, { onOpen: open, onDelete: setTrash });
@@ -147,8 +146,8 @@ export function LibraryView({ state }: { state: AppState }) {
       : <EmptyState icon={<Archive size={44} />} title="받은 글이 없습니다" description="다운로드한 글이 여기에 표시됩니다." />;
   } else if (posts.length === 0) {
     body = search === ''
-      ? <EmptyState icon={<Archive size={44} />} title="표시할 글이 없습니다" description="다른 채널이나 카테고리, 출처를 선택해 보세요." />
-      : <EmptyState icon={<Archive size={44} />} title={`‘${search}’에 대한 결과 없음`} description="다른 검색어를 입력해 보세요." />;
+      ? <EmptyState icon={<Archive size={44} />} title="조건에 맞는 글이 없습니다" description="다른 채널이나 카테고리, 출처를 선택해 보세요." />
+      : <EmptyState icon={<Archive size={44} />} title={`‘${search}’ 검색 결과가 없습니다`} description="다른 검색어를 입력해 보세요." />;
   } else if (channel !== '') {
     body = <div className="scroll padded selectable" ref={marquee.container} tabIndex={-1} onMouseDown={marquee.onMouseDown}>{renderItems(posts)}{marquee.box && <div className="marquee" style={marquee.box} />}</div>;
   } else {
@@ -175,7 +174,7 @@ export function LibraryView({ state }: { state: AppState }) {
 
   return (
     <div className="screen">
-      <Header title="보관함" subtitle={`${posts.length}개 · ${state.libraryRoot}`}>
+      <Header title="보관함" subtitle={`${posts.length}개 (${state.libraryRoot})`}>
         <SearchField value={search} onChange={setSearch} placeholder="제목, 작성자, 본문, 댓글 검색" />
         <Select label="채널" value={channel} onChange={setChannel} options={[{ value: '', label: '모든 채널' }, ...channelsOf(state.library).map((item) => ({ value: item.id, label: item.name }))]} />
         <SourcePicker value={source} onChange={setSource} />
@@ -185,16 +184,16 @@ export function LibraryView({ state }: { state: AppState }) {
       {body}
       {selection.selected.size > 0 && (
         <div className="selection-bar">
-          <strong>{selection.selected.size}개 선택</strong>
+          <strong>{selection.selected.size}개 선택됨</strong>
           <span className="spacer" />
           <button onClick={() => open([...selection.selected])}>열기</button>
           <button onClick={() => redownload([...selection.selected])}>다시 받기</button>
-          <button className="danger" onClick={() => setTrash([...selection.selected])}>휴지통으로</button>
+          <button className="danger" onClick={() => setTrash([...selection.selected])}>휴지통으로 이동</button>
         </div>
       )}
       {trash && (
-        <Dialog title={`${trash.length}개 글을 휴지통으로 옮길까요?`} onClose={() => setTrash(undefined)} width={440}>
-          <p className="muted">받은 사진과 동영상, 오프라인 페이지가 폴더째 휴지통으로 옮겨집니다. 휴지통에서 되돌려 놓으면 보관함에 다시 나타납니다. 받는 중인 글은 옮기지 않습니다.</p>
+        <Dialog title={`선택한 글 ${trash.length}개를 휴지통으로 옮길까요?`} onClose={() => setTrash(undefined)} width={440}>
+          <p className="muted">저장된 이미지와 동영상, 오프라인 페이지가 폴더째 휴지통으로 이동합니다. 휴지통에서 복원하면 보관함에 다시 나타나며, 다운로드 중인 글은 제외됩니다.</p>
           <div className="dialog-buttons">
             <button onClick={() => setTrash(undefined)} autoFocus>취소</button>
             <button className="primary danger-fill" onClick={() => {
@@ -270,7 +269,7 @@ function LibraryRow(props: ItemProps) {
         {props.snippet && <span className="caption faint ellipsis">{props.snippet}</span>}
       </div>
       {busyBadge(props)}
-      <button onClick={props.onOpen} disabled={waiting} title={waiting ? '다 받은 뒤에 열 수 있습니다' : undefined}>열기</button>
+      <button onClick={props.onOpen} disabled={waiting} title={waiting ? '다운로드가 끝난 뒤에 열 수 있습니다' : undefined}>열기</button>
     </div>
   );
 }

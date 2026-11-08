@@ -85,6 +85,7 @@ export interface LibraryItem {
 
 export interface AppState {
   platform: NodeJS.Platform;
+  arch: string;
   material?: 'vibrancy' | 'mica';
   version: string;
   section: Section;

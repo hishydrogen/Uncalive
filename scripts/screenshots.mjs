@@ -129,6 +129,10 @@ try {
   await page.waitForSelector('.sidebar');
   await page.click('.nav-item:has-text("링크")');
   await page.waitForSelector('td.title');
+  // 새로 받을 글 2개와 일부만 받은 글 1개를 체크해 하단 요약 막대와 활성화된 다운로드 버튼을 보여 줍니다.
+  await page.locator('tbody tr').nth(5).locator('td.check input').check();
+  await page.locator('tbody tr').nth(8).locator('td.check input').check();
+  await page.locator('tbody tr').nth(9).locator('td.check input').check();
   await page.waitForTimeout(800);
   await shoot('collection.png');
   await page.click('.nav-item:has-text("보관함")');

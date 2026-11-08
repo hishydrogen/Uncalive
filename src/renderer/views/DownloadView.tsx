@@ -15,7 +15,7 @@ export function DownloadView({ state }: { state: AppState }) {
         <EmptyState
           icon={<ArrowDownCircle size={44} />}
           title="진행 중인 다운로드가 없습니다"
-          description="스크랩이나 링크에서 글을 고른 뒤 다운로드를 시작하세요."
+          description="스크랩이나 링크에서 받을 글을 체크한 뒤 다운로드를 시작하세요."
           actions={<>
             <button onClick={() => void call('setSection', 'scraps')}>스크랩</button>
             <button onClick={() => void call('setSection', 'collection')}>링크</button>
@@ -38,20 +38,20 @@ function JobView({ state, job }: { state: AppState; job: JobState }) {
 
   const title = {
     running: `${job.finishedPosts} / ${job.totalPosts}개 처리됨` + (job.queuedPosts > 0 ? ` (대기 ${job.queuedPosts}개)` : ''),
-    paused: job.activeFiles.length > 0 ? '일시정지하는 중' : '일시정지됨',
+    paused: job.activeFiles.length > 0 ? '일시정지하는 중…' : '일시정지됨',
     waitingForChallenge: 'Cloudflare 보안 확인 대기 중',
     finished: '다운로드 완료',
     cancelled: '중단됨',
-    failed: '다운로드에 실패했습니다',
+    failed: '다운로드 실패',
   }[job.status];
   const detail = {
     running: job.currentTitle,
     paused: job.activeFiles.length > 0
-      ? `새 파일은 받지 않고, 받고 있던 파일 ${job.activeFiles.length}개만 끝까지 받은 뒤 멈춥니다. 바로 멈추려면 중단을 누르세요.`
-      : '계속을 누르면 멈춘 곳부터 이어서 받습니다.',
+      ? `받고 있던 파일 ${job.activeFiles.length}개까지만 마저 받고 멈춥니다. 즉시 멈추려면 ‘중단’을 누르세요.`
+      : '‘계속 받기’를 누르면 멈춘 곳부터 이어서 받습니다.',
     waitingForChallenge: '열린 창에서 보안 확인을 완료하면 다운로드가 자동으로 이어집니다.',
     finished: `저장 위치: ${state.libraryRoot}`,
-    cancelled: '다시 시작하면 이미 받은 파일은 건너뛰고 나머지를 이어서 받습니다.',
+    cancelled: '다시 시작하면 이미 받은 파일은 건너뛰고 남은 파일만 이어서 받습니다.',
     failed: job.failure ?? '',
   }[job.status];
 
@@ -60,7 +60,7 @@ function JobView({ state, job }: { state: AppState; job: JobState }) {
   const speed = elapsed > 0 ? job.savedBytes / elapsed : 0;
   let remaining = '-';
   if (job.status === 'paused' || job.status === 'waitingForChallenge') {
-    remaining = '멈춤';
+    remaining = '일시정지';
   } else if (isActive(job)) {
     remaining = job.finishedPosts > 0 && job.finishedPosts < job.totalPosts
       ? '약 ' + formatDuration((elapsed / job.finishedPosts) * (job.totalPosts - job.finishedPosts))
@@ -80,14 +80,14 @@ function JobView({ state, job }: { state: AppState; job: JobState }) {
           {isActive(job) ? (
             <div className="row">
               <button onClick={() => {
-                if (job.status === 'running' && job.activeFiles.length > 0) showToast('받고 있던 파일은 끝까지 받은 뒤 멈춥니다');
+                if (job.status === 'running' && job.activeFiles.length > 0) showToast('받고 있던 파일까지만 마저 받고 멈춥니다');
                 void call('togglePause');
-              }} disabled={job.status === 'waitingForChallenge'}>{job.status === 'paused' ? '계속' : '일시정지'}</button>
+              }} disabled={job.status === 'waitingForChallenge'}>{job.status === 'paused' ? '계속 받기' : '일시정지'}</button>
               <button className="danger" onClick={() => void call('cancelDownload')}>중단</button>
             </div>
           ) : (
             <div className="row">
-              <button onClick={() => void call('clearJob')} title="이 다운로드의 기록을 화면에서 지웁니다. 받은 파일은 그대로입니다.">기록 지우기</button>
+              <button onClick={() => void call('clearJob')} title="화면에서 다운로드 기록만 지웁니다. 저장된 파일은 그대로 남습니다.">기록 지우기</button>
               <button onClick={() => void call('openLibraryFolder')}>폴더 열기</button>
             </div>
           )}
@@ -97,7 +97,7 @@ function JobView({ state, job }: { state: AppState; job: JobState }) {
           <div className="stat-row">
             <Stat title="저장한 파일" value={`${job.savedFiles}개`} />
             <Stat title="받은 용량" value={formatBytes(job.savedBytes)} />
-            <Stat title="실패" value={`글 ${job.failedPosts + job.incompletePosts} · 파일 ${job.failedFiles}`} />
+            <Stat title="실패" value={`글 ${job.failedPosts + job.incompletePosts}개, 파일 ${job.failedFiles}개`} />
             <Stat title="평균 속도" value={`${formatBytes(Math.round(speed))}/s`} />
             <Stat title="남은 시간" value={remaining} />
           </div>

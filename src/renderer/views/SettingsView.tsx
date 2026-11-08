@@ -21,6 +21,7 @@ export function SettingsView({ state }: { state: AppState }) {
           {tab === 'media' && <Media state={state} />}
           {tab === 'archive' && <ArchiveSettings state={state} />}
           {tab === 'speed' && <Speed state={state} />}
+          <AboutFooter state={state} />
         </div>
       </div>
     </div>
@@ -49,10 +50,10 @@ function General({ state }: { state: AppState }) {
           ]} />
         </Row>
         <Row label="알림 보내기">
-          <button onClick={() => void call('testNotification')} disabled={!state.notifications}>시험 알림 보내기</button>
+          <button onClick={() => void call('testNotification')} disabled={!state.notifications}>테스트 알림 보내기</button>
           <Toggle label="" checked={state.notifications} onChange={(value) => void call('setNotifications', value)} />
         </Row>
-        <p className="caption">다운로드를 마치거나 멈췄을 때, 보안 확인이 필요할 때, 새 스크랩을 찾았을 때 운영체제 알림으로 알립니다. 앱 창을 보고 있을 때는 띄우지 않으며, 알림에 글 제목은 넣지 않습니다. 시험 알림이 오지 않으면 운영체제 설정의 알림에서 언카라이브를 허용해 주세요.</p>
+        <p className="caption">다운로드가 완료되거나 멈췄을 때, 보안 확인이 필요할 때, 새 스크랩을 찾았을 때 시스템 알림을 보냅니다. 앱 창을 보고 있을 때는 띄우지 않으며, 사생활 보호를 위해 글 제목은 표시하지 않습니다. 테스트 알림이 오지 않으면 운영체제 설정에서 언카라이브의 알림을 허용해 주세요.</p>
       </section>
 
       <section className="card">
@@ -61,7 +62,7 @@ function General({ state }: { state: AppState }) {
           <button onClick={() => void call('chooseDestination')} disabled={jobActive}>변경…</button>
         </Row>
         <Toggle label="계정마다 보관함 나누기" checked={state.useAccountFolder} disabled={jobActive} onChange={(value) => void call('setUseAccountFolder', value)} />
-        <p className="caption">현재 보관함: {state.libraryRoot}<br />계정은 닉네임이 아니라 로그인 아이디로 구분하므로, 닉네임이 바뀌거나 겹쳐도 보관함이 섞이지 않습니다. 계정을 바꾸면 그 계정의 보관함과 링크 목록으로 전환됩니다.</p>
+        <p className="caption">현재 보관함: {state.libraryRoot}<br />닉네임이 아닌 로그인 아이디로 계정을 구분하므로, 닉네임을 바꾸거나 다른 계정과 겹쳐도 보관함이 섞이지 않습니다. 계정을 전환하면 해당 계정의 보관함과 링크 목록으로 바뀝니다.</p>
       </section>
 
       <section className="card">
@@ -85,7 +86,7 @@ function General({ state }: { state: AppState }) {
         <h3>새 스크랩 자동 확인</h3>
         <Row label="확인 주기">
           <Select<string> label="확인 주기" value={String(state.autoCheckHours)} onChange={(value) => void call('setAutoCheckHours', Number(value))} options={[
-            { value: '0', label: '끄기' }, { value: '1', label: '1시간' }, { value: '6', label: '6시간' }, { value: '12', label: '12시간' }, { value: '24', label: '하루' },
+            { value: '0', label: '사용 안 함' }, { value: '1', label: '1시간' }, { value: '6', label: '6시간' }, { value: '12', label: '12시간' }, { value: '24', label: '24시간' },
           ]} />
         </Row>
         <Toggle label="새 스크랩 자동으로 받기" checked={state.autoDownloadNew} disabled={state.autoCheckHours === 0} onChange={(value) => void call('setAutoDownloadNew', value)} />
@@ -93,7 +94,7 @@ function General({ state }: { state: AppState }) {
           <span>{state.lastCheck ? new Date(state.lastCheck).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' }) : '없음'}</span>
           <button onClick={() => void call('checkNow')} disabled={state.isBusy || state.login !== 'loggedIn'}>지금 확인</button>
         </Row>
-        <p className="caption">앱이 실행 중일 때는 첫 페이지부터 확인해 이전에 불러온 글이 나올 때까지 새 스크랩을 찾으므로, 여러 페이지를 스크랩해도 놓치지 않습니다. 자동 확인을 켜 두면 창을 닫아도 앱이 알림 영역에 남아 동작하며, 알림에는 글 제목이 표시되지 않습니다.</p>
+        <p className="caption">앱이 실행 중일 때는 첫 페이지부터 확인하여 이전에 불러온 글이 나올 때까지 새 스크랩을 찾으므로, 한 번에 여러 페이지를 스크랩해도 놓치지 않습니다. 자동 확인을 켜 두면 창을 닫아도 백그라운드에서 계속 동작합니다.</p>
       </section>
 
       <section className="card">
@@ -105,7 +106,7 @@ function General({ state }: { state: AppState }) {
         </Row>
         <Toggle label="채널별 폴더로 나누기" checked={options.groupByChannel} onChange={(groupByChannel) => updateOptions(state, { groupByChannel })} />
         <Row label="이름 최대 길이">
-          <NumberField label="이름 최대 길이" value={options.folderNameMaxLength} min={20} max={120} onChange={(folderNameMaxLength) => updateOptions(state, { folderNameMaxLength })} /> 자
+          <NumberField label="이름 최대 길이" value={options.folderNameMaxLength} min={20} max={120} onChange={(folderNameMaxLength) => updateOptions(state, { folderNameMaxLength })} />자
         </Row>
       </section>
     </>
@@ -155,7 +156,7 @@ function ArchiveSettings({ state }: { state: AppState }) {
         <Toggle label="글 정보 (post.json)" checked={archive.metadataJSON} onChange={(metadataJSON) => updateArchive(state, { metadataJSON })} />
         <Toggle label="웹 아카이브 (page.mhtml)" checked={archive.webArchive} onChange={(webArchive) => updateArchive(state, { webArchive })} />
         <Toggle label="페이지 원문 (page.html)" checked={archive.rawHTML} onChange={(rawHTML) => updateArchive(state, { rawHTML })} />
-        <p className="caption">웹 아카이브는 페이지 전체를 한 파일에 담아 Edge나 Chrome에서 열 수 있으며, 글마다 용량을 더 차지합니다. 페이지 원문에는 로그인한 계정의 닉네임이 포함될 수 있습니다.</p>
+        <p className="caption">웹 아카이브는 페이지 전체를 파일 하나로 묶어 저장하며(Chrome, Edge 지원), 글마다 추가 용량을 차지합니다. 페이지 원문은 원본 HTML을 그대로 저장하므로 로그인한 계정의 닉네임이 포함될 수 있습니다.</p>
       </section>
     </>
   );
@@ -177,7 +178,7 @@ function Speed({ state }: { state: AppState }) {
       <section className="card">
         <Seconds label="글 사이 대기" value={options.pageDelay} min={1} max={10} step={0.5} onChange={(pageDelay) => updateOptions(state, { pageDelay })} />
         <Seconds label="파일 사이 대기" value={options.mediaDelay} min={0} max={2} step={0.1} onChange={(mediaDelay) => updateOptions(state, { mediaDelay })} />
-        <p className="caption">글을 너무 빠르게 연속해서 열면 이용이 제한될 수 있습니다. 앞선 글의 파일을 받는 동안 다음 글을 미리 불러오므로, 대기 시간을 늘려도 전체 소요 시간은 크게 늘어나지 않습니다.</p>
+        <p className="caption">글을 너무 빠르게 연속해서 열면 사이트 이용이 제한될 수 있습니다. 앞선 글의 파일을 받는 동안 다음 글을 미리 불러오므로, 대기 시간을 늘려도 전체 소요 시간은 크게 늘어나지 않습니다.</p>
       </section>
       <section className="card">
         <Row label="CDN 동시 다운로드">
@@ -186,9 +187,28 @@ function Speed({ state }: { state: AppState }) {
         <Row label="실패 시 재시도">
           <Segmented<number> label="실패 시 재시도" value={options.retryCount} onChange={(retryCount) => updateOptions(state, { retryCount })} options={[0, 1, 3, 5].map((value) => ({ value, label: `${value}회` }))} />
         </Row>
-        <p className="caption">원본 서버는 자체 연결 제한에 맞춰 동시 다운로드 수를 2개로 고정합니다.</p>
+        <p className="caption">원본 서버는 자체 연결 제한에 맞춰 동시 다운로드 수가 항상 2개로 고정됩니다.</p>
       </section>
-      <p className="caption center">언카라이브 {state.version}</p>
     </>
+  );
+}
+
+function AboutFooter({ state }: { state: AppState }) {
+  const os = ({ darwin: 'macOS', win32: 'Windows', linux: 'Linux' } as Record<string, string>)[state.platform] ?? state.platform;
+  const arch = state.platform === 'darwin' && state.arch === 'arm64' ? 'Apple Silicon' : state.arch;
+  return (
+    <footer className="about-footer">
+      <div className="about-meta">
+        <strong>언카라이브 {state.version}</strong>
+        <span>{os} ({arch})</span>
+        <span>© 2026 Hishydrogen</span>
+      </div>
+      <div className="about-links">
+        <a href="https://github.com/hishydrogen/Uncalive#readme" target="_blank" rel="noreferrer">사용 설명서</a>
+        <a href="https://github.com/hishydrogen/Uncalive/releases" target="_blank" rel="noreferrer">릴리스 노트</a>
+        <a href="https://github.com/hishydrogen/Uncalive/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT 라이선스</a>
+        <a href="https://github.com/hishydrogen/Uncalive" target="_blank" rel="noreferrer">GitHub</a>
+      </div>
+    </footer>
   );
 }

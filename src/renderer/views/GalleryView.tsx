@@ -56,7 +56,7 @@ export function GalleryView({ state }: { state: AppState }) {
   const selection = useSelection(paths);
   const copyFiles = (picked: string[]) => {
     void call('copyFiles', picked).then((count) => {
-      if (count === 1 && picked.length === 1) showToast('복사했습니다. 다른 앱에 붙여 넣을 수 있습니다');
+      if (count === 1 && picked.length === 1) showToast('이미지를 복사했습니다. 다른 앱에 바로 붙여 넣을 수 있습니다');
       else if (count > 0) showToast(`파일 ${count}개를 복사했습니다. ${isMac ? 'Finder' : '파일 탐색기'}에 붙여 넣을 수 있습니다`);
     });
   };
@@ -64,7 +64,7 @@ export function GalleryView({ state }: { state: AppState }) {
     void call('exportFiles', picked).then((count) => { if (count > 0) showToast(`파일 ${count}개를 내보냈습니다`); });
   };
   const openPosts = (ids: string[]) => {
-    if (ids.length > 5) showToast('한 번에 다섯 개까지만 엽니다');
+    if (ids.length > 5) showToast('한 번에 5개까지만 열 수 있습니다');
     for (const id of ids.slice(0, 5)) void call('openPost', id);
   };
   const openAt = (path: string) => {
@@ -185,7 +185,7 @@ function Lightbox(props: { media: Media[]; index: number; onIndex: (index: numbe
         reset();
       } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'c') {
         event.preventDefault();
-        void call('copyFiles', [file.path]).then((count) => { if (count > 0) showToast('복사했습니다'); });
+        void call('copyFiles', [file.path]).then((count) => { if (count > 0) showToast('클립보드에 복사했습니다'); });
       } else if (event.metaKey || event.ctrlKey) {
         return;
       } else if (event.key.toLowerCase() === 'r') {
@@ -229,13 +229,13 @@ function Lightbox(props: { media: Media[]; index: number; onIndex: (index: numbe
   return createPortal(
     <div className="lightbox" role="dialog" aria-modal aria-label={file.item.title} onMouseDown={(event) => { if (event.target === event.currentTarget) props.onClose(); }} onWheel={onWheel}>
       <div className="lightbox-bar">
-        <span className="ellipsis">{file.item.title} · {props.index + 1} / {props.media.length}</span>
+        <span className="ellipsis">{file.item.title} ({props.index + 1} / {props.media.length})</span>
         <span className="spacer" />
         <div className="lightbox-tools" role="toolbar" aria-label="보기 도구">
           <button className="plain" title="축소 (-)" aria-label="축소" disabled={zoom <= minZoom} onClick={() => apply({ zoom: zoom / 1.25 })}><ZoomOut size={16} /></button>
           <button className="plain zoom-label" title="화면에 맞추기 (0)" onClick={reset}>{Math.round(zoom * 100)}%</button>
           <button className="plain" title="확대 (+)" aria-label="확대" disabled={zoom >= maxZoom} onClick={() => apply({ zoom: zoom * 1.25 })}><ZoomIn size={16} /></button>
-          <button className="plain" title="오른쪽으로 돌리기 (R)" aria-label="돌리기" onClick={() => apply({ rotation: rotation + 90 })}><RotateCw size={16} /></button>
+          <button className="plain" title="회전 (R)" aria-label="회전" onClick={() => apply({ rotation: rotation + 90 })}><RotateCw size={16} /></button>
         </div>
         <button className="plain" title="글 열기" onClick={() => void call('openPost', file.item.id)}><ExternalLink size={16} /></button>
         <button className="plain" title="폴더에서 보기" onClick={() => void call('revealFile', file.path)}><FolderOpen size={16} /></button>

@@ -5,7 +5,7 @@ import { log, loginLog, startLoginLog } from './log';
 
 const sessionCookie = 'arca.at';
 
-/** 아카라이브 로그인 아이디 규칙(영문으로 시작, 영문·숫자·밑줄 16자 이하)에 맞으면 소문자로 돌려줍니다. */
+/** 아카라이브 로그인 아이디 규칙(영문으로 시작하며 영문, 숫자, 밑줄 조합 16자 이하)에 맞으면 소문자로 돌려줍니다. */
 export function normalizeLoginID(value: string | undefined): string | undefined {
   const id = (value ?? '').trim();
   return /^[a-z][a-z0-9_]{0,15}$/i.test(id) ? id.toLowerCase() : undefined;
