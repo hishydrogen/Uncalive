@@ -48,7 +48,7 @@ function General({ state }: { state: AppState }) {
           <button onClick={() => void call('chooseDestination')} disabled={jobActive}>변경…</button>
         </Row>
         <Toggle label="계정마다 보관함 나누기" checked={state.useAccountFolder} disabled={jobActive} onChange={(value) => void call('setUseAccountFolder', value)} />
-        <p className="caption">현재 보관함: {state.libraryRoot}<br />로그인한 계정을 바꾸면 해당 계정의 보관함과 주소 수집 목록으로 전환됩니다.</p>
+        <p className="caption">현재 보관함: {state.libraryRoot}<br />계정은 닉네임이 아니라 로그인 아이디로 구분하므로, 닉네임이 바뀌거나 겹쳐도 보관함이 섞이지 않습니다. 계정을 바꾸면 그 계정의 보관함과 주소 수집 목록으로 전환됩니다.</p>
       </section>
 
       <section className="card">

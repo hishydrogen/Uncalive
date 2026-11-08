@@ -153,12 +153,15 @@ export function LibraryView({ state }: { state: AppState }) {
 export function Thumbnail(props: { path?: string; isVideo?: boolean; className: string; fallback: React.ReactNode }) {
   const [ref, visible] = useVisible<HTMLDivElement>();
   const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const showing = visible && props.path && !failed;
+  // 그림이 다 오기 전에는 은은하게 반짝이다가, 오면 부드럽게 나타납니다.
   return (
-    <div ref={ref} className={props.className}>
-      {visible && props.path && !failed ? (
+    <div ref={ref} className={`${props.className} ${showing && !loaded ? 'loading' : ''}`}>
+      {showing ? (
         props.isVideo
-          ? <video src={mediaURL(props.path) + '#t=0.1'} preload="metadata" muted onError={() => setFailed(true)} />
-          : <img src={mediaURL(props.path)} loading="lazy" decoding="async" alt="" onError={() => setFailed(true)} />
+          ? <video className={loaded ? 'loaded' : ''} src={mediaURL(props.path!) + '#t=0.1'} preload="metadata" muted onLoadedData={() => setLoaded(true)} onError={() => setFailed(true)} />
+          : <img className={loaded ? 'loaded' : ''} src={mediaURL(props.path!)} loading="lazy" decoding="async" alt="" onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />
       ) : props.fallback}
       {props.isVideo && <span className="play"><Play size={18} fill="currentColor" /></span>}
     </div>

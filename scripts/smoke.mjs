@@ -43,18 +43,54 @@ try {
   await page.fill('.dialog textarea', 'https://arca.live/b/test/123\nhttps://arca.live/b/test?mode=best');
   check(await sees('text=목록을 불러올 범위'), '목록 주소면 범위를 묻는다');
   await snap('2-add-dialog');
-  await page.fill('.dialog textarea', 'https://arca.live/b/test/123\narca.live/b/test/456');
+  await page.fill('.dialog textarea', ['123', '456', '789', '1011', '1213'].map((id) => `https://arca.live/b/test/${id}`).join('\n'));
   await page.click('.dialog button.primary');
-  await page.waitForSelector('td.title:has-text("글 456")');
-  check((await page.locator('tbody tr').count()) === 2, '주소로 더한 글이 목록에 보인다');
-  check(await sees('text=2개 선택됨'), '새로 더한 글은 골라져 있다');
-  await page.click('td.title:has-text("글 123")');
-  check(await sees('text=1개 선택됨'), '줄을 누르면 선택이 바뀐다');
+  await page.waitForSelector('td.title:has-text("글 1213")');
+  check((await page.locator('tbody tr').count()) === 5, '주소로 더한 글이 목록에 보인다');
+  check(await sees('text=5개 선택됨'), '새로 더한 글은 골라져 있다');
   await snap('3-collection');
 
-  await page.click('button[aria-label="목록에서 제거"] >> nth=0');
-  await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 1);
+  // Finder처럼 고르기: 누르기, ⌘(Ctrl) 누르기, Shift 누르기, 모두 선택, 해제, 끌어 고르기, 방향키
+  const command = process.platform === 'darwin' ? 'Meta' : 'Control';
+  const row = (n) => page.locator('tbody tr').nth(n).locator('td.title');
+  const selected = (count) => sees(`text=${count}개 선택됨`);
+  await row(0).click();
+  check(await selected(1), '줄을 누르면 그 줄만 고른다');
+  await row(2).click({ modifiers: [command] });
+  check(await selected(2), `${command}를 누른 채 누르면 더한다`);
+  await row(4).click({ modifiers: ['Shift'] });
+  check(await selected(4), 'Shift를 누른 채 누르면 범위를 고른다');
+  await page.keyboard.press('Escape');
+  check(await selected(0), 'Esc로 선택을 푼다');
+  await page.keyboard.press(`${command}+A`);
+  check(await selected(5), `${command}+A로 모두 고른다`);
+  const first = await row(1).boundingBox();
+  const last = await row(3).boundingBox();
+  await page.mouse.move(first.x + 40, first.y + first.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(last.x + 80, last.y + last.height / 2, { steps: 8 });
+  await page.mouse.up();
+  check(await selected(3), '끌어서 상자로 고른다');
+  await page.keyboard.press('ArrowDown');
+  check(await selected(1) && (await page.locator('tr.cursor td.title').innerText()) === '글 1213', '끌기를 마친 줄에서 방향키가 이어진다');
+  await row(0).click();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Shift+ArrowDown');
+  check(await selected(2), '방향키로 옮기고 Shift로 넓힌다');
+
+  await page.keyboard.press('Delete');
+  await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 3);
+  check(await sees('.toast:has-text("2개를 목록에서 뺐습니다")'), 'Delete로 고른 글을 빼고 알린다');
+  await page.click('.toast button:has-text("실행 취소")');
+  await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 5);
+  check(true, '실행 취소로 되돌린다');
+
+  await page.click('button[aria-label="목록에서 빼기"] >> nth=0');
+  await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 4);
   check(true, '줄 끝 버튼으로 글을 뺀다');
+  await page.keyboard.press(`${command}+Z`);
+  await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 5);
+  check(true, `${command}+Z로 되돌린다`);
 
   await page.click('.nav-item:has-text("다운로드")');
   check(await sees('text=진행 중인 다운로드가 없습니다'), '다운로드 화면');

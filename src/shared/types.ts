@@ -77,10 +77,13 @@ export interface LibraryItem {
 
 export interface AppState {
   platform: NodeJS.Platform;
+  material?: 'vibrancy' | 'mica';
   version: string;
   section: Section;
   login: LoginState;
   username?: string;
+  /** 로그인 아이디입니다. 계정마다 보관함을 나누는 기준입니다. */
+  loginID?: string;
   useAccountFolder: boolean;
   options: DownloadOptions;
   libraryRoot: string;
@@ -107,7 +110,10 @@ export interface Commands {
   addTargets(text: string, scope: ListScope): void;
   clearCollection(): void;
   removeFromCollection(id: string): void;
-  removeCheckedFromCollection(): void;
+  removeCheckedFromCollection(): number;
+  removeFromCollectionMany(ids: string[]): number;
+  undoRemoveFromCollection(): number;
+  setSelection(kind: ListKind, ids: string[]): void;
   setChecked(kind: ListKind, ids: string[], value: boolean): void;
   checkUnsaved(kind: ListKind): void;
   startDownload(kind: ListKind): void;

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Bookmark, Download, Link2, Plus, RefreshCw, SlidersHorizontal, Square, Trash2, UserCircle2, X } from 'lucide-react';
 import { call, formatShortDate, qualityTitles, usePreference } from '../api';
-import { EmptyState, Header, SearchField, Select, Spinner, useContextMenu } from '../components';
+import { EmptyState, Header, SearchField, Select, showToast, Spinner, useContextMenu } from '../components';
+import { modifiersOf, useSelection } from '../selection';
 import type { AppState, ListKind, PostStatus, ScrapEntry } from '../../shared/types';
 import { AddURLsDialog } from './AddURLsDialog';
 import { OptionsPanel } from './OptionsPanel';
@@ -73,10 +74,8 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
   const [showOptions, setShowOptions] = usePreference('showDownloadOptions', true);
   const [showAdd, setShowAdd] = useState(false);
   const menu = useContextMenu();
-  const anchor = useRef<string>(undefined);
   const set = (patch: Partial<Filters>) => props.onFilters({ ...filters, ...patch });
 
-  const checked = useMemo(() => new Set(list.checked), [list.checked]);
   const title = (entry: ScrapEntry) => state.records[entry.id]?.title ?? entry.title;
   const category = (entry: ScrapEntry) => entry.category ?? state.records[entry.id]?.category;
 
@@ -104,36 +103,138 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
     : list.entries.length > 0 ? `${list.entries.length}개` : '';
   const jobActive = state.job !== undefined && ['running', 'paused', 'waitingForChallenge'].includes(state.job.status);
 
-  /** 줄을 누르면 고르고, Shift를 누른 채 누르면 사이의 글을 모두 같은 상태로 바꿉니다. */
-  const toggle = (entry: ScrapEntry, shift: boolean) => {
-    const value = !checked.has(entry.id);
-    if (shift && anchor.current) {
-      const ids = visible.map((item) => item.id);
-      const [a, b] = [ids.indexOf(anchor.current), ids.indexOf(entry.id)].sort((x, y) => x - y);
-      if (a >= 0) {
-        void call('setChecked', kind, ids.slice(a, b + 1), value);
-        anchor.current = entry.id;
-        return;
-      }
-    }
-    anchor.current = entry.id;
-    void call('setChecked', kind, [entry.id], value);
-  };
-
+  const isMac = state.platform === 'darwin';
+  const visibleIDs = useMemo(() => visible.map((entry) => entry.id), [visible]);
+  const selection = useSelection(kind, visibleIDs, list.checked);
+  const checked = selection.selected;
   const allVisibleChecked = visible.length > 0 && visible.every((entry) => checked.has(entry.id));
-  const checkedCount = list.checked.length;
+  const checkedCount = checked.size;
 
-  // Enter로 다운로드를 시작합니다. 입력 칸이나 대화 상자에서 누른 Enter는 건드리지 않습니다.
+  /** 목록에서 빼고, 실행 취소를 알림에 붙입니다. */
+  const remove = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const count = await call('removeFromCollectionMany', ids);
+    if (count > 0) showToast(`${count}개를 목록에서 뺐습니다`, { label: '실행 취소', run: () => void call('undoRemoveFromCollection') });
+  }, []);
+
+  // 키보드: ⌘A(Ctrl+A) 모두 선택, Esc 선택 해제, 방향키 이동, 스페이스 바 넣고 빼기, Delete 빼기, ⌘Z 되돌리기, Enter 다운로드.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Enter' || showAdd || event.defaultPrevented) return;
+      if (showAdd || event.defaultPrevented) return;
       const target = event.target as HTMLElement | null;
-      if (target && ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) return;
-      if (checkedCount > 0 && !loading) void call('startDownload', kind);
+      if (target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)) return;
+      if (document.querySelector('.dialog, .context-menu, .lightbox')) return;
+      const command = isMac ? event.metaKey : event.ctrlKey;
+      const key = event.key;
+      if (command && key.toLowerCase() === 'a') {
+        event.preventDefault();
+        selection.selectAll();
+      } else if (command && key.toLowerCase() === 'z' && !event.shiftKey) {
+        if (isScraps) return;
+        event.preventDefault();
+        void call('undoRemoveFromCollection').then((count) => { if (count > 0) showToast(`${count}개를 되돌렸습니다`); });
+      } else if (key === 'Escape') {
+        selection.clear();
+      } else if (key === 'ArrowDown' || key === 'ArrowUp') {
+        event.preventDefault();
+        selection.move(key === 'ArrowDown' ? 1 : -1, event.shiftKey);
+      } else if (key === ' ' && selection.cursor && target?.tagName !== 'BUTTON') {
+        event.preventDefault();
+        selection.toggle(selection.cursor);
+      } else if (key === 'Delete' || key === 'Backspace') {
+        const targets = selection.now();
+        if (targets.size === 0) return;
+        event.preventDefault();
+        if (isScraps) {
+          selection.clear();
+          showToast('스크랩은 아카라이브에서만 지울 수 있어 선택만 해제했습니다');
+        } else {
+          void remove([...targets]);
+        }
+      } else if (key === 'Enter' && target?.tagName !== 'BUTTON') {
+        if (selection.now().size > 0 && !loading) void call('startDownload', kind);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [checkedCount, loading, showAdd, kind]);
+  }, [selection, checked, checkedCount, loading, showAdd, kind, isScraps, isMac, remove]);
+
+  // 커서가 옮겨 가면 그 줄이 보이게 합니다.
+  useEffect(() => {
+    if (selection.cursor) rows.current.get(selection.cursor)?.scrollIntoView({ block: 'nearest' });
+  }, [selection.cursor]);
+
+  // 마우스: 줄을 누르면 고르고, 누른 채 끌면 상자 안의 줄을 고릅니다. 가장자리로 끌면 저절로 굴러갑니다.
+  const wrap = useRef<HTMLDivElement>(null);
+  const rows = useRef(new Map<string, HTMLTableRowElement>());
+  const [box, setBox] = useState<{ top: number; left: number; width: number; height: number }>();
+
+  const onPointerDown = (event: React.MouseEvent) => {
+    if (event.button !== 0) return;
+    const element = event.target as HTMLElement;
+    if (element.closest('input, button, a, select, th')) return;
+    const container = wrap.current;
+    if (!container) return;
+    event.preventDefault();
+    container.focus({ preventScroll: true });
+    const modifiers = modifiersOf(event, isMac);
+    const additive = modifiers.toggle || modifiers.range;
+    const base = additive ? new Set(checked) : new Set<string>();
+    const rowID = element.closest('tr')?.dataset.id;
+    const origin = container.getBoundingClientRect();
+    const start = { x: event.clientX - origin.left + container.scrollLeft, y: event.clientY - origin.top + container.scrollTop };
+    let pointer = { x: event.clientX, y: event.clientY };
+    let moved = false;
+    let frame = 0;
+    let latest = base;
+
+    const update = () => {
+      const rect = container.getBoundingClientRect();
+      // 가장자리 가까이 끌면 그만큼 빠르게 굴립니다.
+      const edge = 36;
+      if (pointer.y < rect.top + edge) container.scrollTop -= Math.ceil((rect.top + edge - pointer.y) / 3);
+      else if (pointer.y > rect.bottom - edge) container.scrollTop += Math.ceil((pointer.y - (rect.bottom - edge)) / 3);
+      const now = { x: pointer.x - rect.left + container.scrollLeft, y: pointer.y - rect.top + container.scrollTop };
+      const top = Math.min(start.y, now.y);
+      const bottom = Math.max(start.y, now.y);
+      const left = Math.max(0, Math.min(start.x, now.x));
+      setBox({ top, left, width: Math.abs(now.x - start.x), height: bottom - top });
+      const next = new Set(base);
+      rows.current.forEach((row, id) => {
+        if (row.offsetTop < bottom && row.offsetTop + row.offsetHeight > top) next.add(id);
+      });
+      latest = next;
+      selection.preview(next);
+      frame = requestAnimationFrame(update);
+    };
+
+    const onMove = (move: MouseEvent) => {
+      pointer = { x: move.clientX, y: move.clientY };
+      if (!moved && Math.hypot(move.clientX - event.clientX, move.clientY - event.clientY) > 4) {
+        moved = true;
+        frame = requestAnimationFrame(update);
+      }
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      cancelAnimationFrame(frame);
+      setBox(undefined);
+      if (moved) {
+        selection.commit(latest);
+        // 끌기를 마친 줄을 지금 줄로 삼아, 방향키가 거기서 이어지게 합니다.
+        const rect = container.getBoundingClientRect();
+        const y = pointer.y - rect.top + container.scrollTop;
+        let end: string | undefined;
+        rows.current.forEach((row, id) => { if (row.offsetTop <= y && y < row.offsetTop + row.offsetHeight) end = id; });
+        if (end) selection.setCursor(end);
+      }
+      else if (rowID) selection.click(rowID, modifiers);
+      else if (!additive) selection.clear();
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
 
   let body: React.ReactNode;
   if (isScraps && state.login === 'loggedOut' && list.entries.length === 0 && !loading) {
@@ -186,12 +287,12 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
           <span className="spacer" />
           <span className="caption">{visible.length}개 표시</span>
         </div>
-        <div className="table-wrap">
+        <div className="table-wrap" ref={wrap} tabIndex={-1} onMouseDown={onPointerDown} aria-multiselectable>
           <table className="entries">
             <thead>
               <tr>
                 <th className="check">
-                  <input type="checkbox" aria-label="보이는 글 모두 선택" checked={allVisibleChecked} onChange={(event) => void call('setChecked', kind, visible.map((entry) => entry.id), event.target.checked)} />
+                  <input type="checkbox" aria-label="보이는 글 모두 선택" checked={allVisibleChecked} onChange={(event) => (event.target.checked ? selection.selectAll() : selection.clear())} />
                 </th>
                 <th>제목</th>
                 <th className="channel">채널</th>
@@ -207,19 +308,23 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
                 return (
                   <tr
                     key={entry.id}
-                    className={checked.has(entry.id) ? 'checked' : ''}
-                    onClick={(event) => toggle(entry, event.shiftKey)}
-                    onContextMenu={(event) => menu.open(event, [
-                      { label: '원문 열기', onClick: () => window.open(entry.url) },
-                      ...(state.records[entry.id] ? [{ label: '받은 글 열기', onClick: () => void call('openPost', entry.id) }] : []),
-                      ...(!isScraps ? [{ label: '목록에서 제거', danger: true, onClick: () => void call('removeFromCollection', entry.id) }] : []),
-                    ])}
+                    data-id={entry.id}
+                    ref={(row) => { if (row) rows.current.set(entry.id, row); else rows.current.delete(entry.id); }}
+                    className={`${checked.has(entry.id) ? 'checked' : ''} ${selection.cursor === entry.id ? 'cursor' : ''}`}
+                    aria-selected={checked.has(entry.id)}
+                    onContextMenu={(event) => {
+                      // 고르지 않은 줄에서 메뉴를 열면 그 줄만 고릅니다(Finder와 같습니다).
+                      const targets = checked.has(entry.id) ? [...checked] : [entry.id];
+                      if (!checked.has(entry.id)) selection.click(entry.id, { toggle: false, range: false });
+                      menu.open(event, [
+                        { label: '원문 열기', onClick: () => window.open(entry.url) },
+                        ...(state.records[entry.id] ? [{ label: '받은 글 열기', onClick: () => void call('openPost', entry.id) }] : []),
+                        ...(!isScraps ? [{ label: targets.length > 1 ? `고른 ${targets.length}개 목록에서 빼기` : '목록에서 빼기', danger: true, onClick: () => void remove(targets) }] : []),
+                      ]);
+                    }}
                   >
                     <td className="check">
-                      <input type="checkbox" aria-label="선택" checked={checked.has(entry.id)} onClick={(event) => event.stopPropagation()} onChange={(event) => {
-                        anchor.current = entry.id;
-                        void call('setChecked', kind, [entry.id], event.target.checked);
-                      }} />
+                      <input type="checkbox" aria-label="선택" checked={checked.has(entry.id)} onChange={() => selection.toggle(entry.id)} />
                     </td>
                     <td className="title" title={title(entry)}>{title(entry)}</td>
                     <td className="channel">{entry.channelName ?? entry.channel}</td>
@@ -227,29 +332,29 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
                     <td className="author">{entry.author ?? ''}</td>
                     <td className="date">{formatShortDate(entry.createdAt)}</td>
                     <td className="status">
+                      <span className="status-cell">
                       <span className={`status-badge ${status}`} title={statusLabels[status]} aria-label={statusLabels[status]} />
                       {!isScraps && (
-                        <button className="plain remove" title="목록에서 제거" aria-label="목록에서 제거" onClick={(event) => {
-                          event.stopPropagation();
-                          void call('removeFromCollection', entry.id);
-                        }}><X size={14} /></button>
+                        <button className="plain remove" title="목록에서 빼기" aria-label="목록에서 빼기" onClick={() => void remove([entry.id])}><X size={14} /></button>
                       )}
+                      </span>
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+          {box && <div className="marquee" style={box} />}
         </div>
         <div className="action-bar">
           <Select<string> label="선택" value="" onChange={(value) => {
-            if (value === 'all') void call('setChecked', kind, visible.map((entry) => entry.id), true);
-            if (value === 'none') void call('setChecked', kind, visible.map((entry) => entry.id), false);
-            if (value === 'unsaved') void call('checkUnsaved', kind);
+            if (value === 'all') selection.selectAll();
+            if (value === 'none') selection.clear();
+            if (value === 'unsaved') selection.commit(new Set(visible.filter((entry) => statusOf(state, entry) !== 'saved').map((entry) => entry.id)));
           }} options={[
-            { value: '', label: '선택…' }, { value: 'all', label: '보이는 글 모두 선택' }, { value: 'none', label: '보이는 글 모두 해제' }, { value: 'unsaved', label: '안 받은 글만 선택' },
+            { value: '', label: '선택…' }, { value: 'all', label: `모두 선택 (${isMac ? '⌘A' : 'Ctrl+A'})` }, { value: 'none', label: '선택 해제 (Esc)' }, { value: 'unsaved', label: '안 받은 글만 선택' },
           ]} />
-          {!isScraps && <button onClick={() => void call('removeCheckedFromCollection')} disabled={checkedCount === 0}>선택 제거</button>}
+          {!isScraps && <button onClick={() => void remove([...checked])} disabled={checkedCount === 0} title={isMac ? 'Delete' : 'Delete'}>고른 글 빼기</button>}
           <button className="plain summary" title="다운로드 옵션 보기" onClick={() => setShowOptions(true)}>{optionsSummary(state)}</button>
           <span className="spacer" />
           <span className="muted nowrap">{checkedCount}개 선택됨</span>
@@ -272,7 +377,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
         ) : (
           <>
             <button onClick={() => setShowAdd(true)}><Plus size={14} /> 주소 추가</button>
-            <button onClick={() => void call('clearCollection')} disabled={list.entries.length === 0}><Trash2 size={14} /> 목록 비우기</button>
+            <button onClick={() => void remove(list.entries.map((entry) => entry.id))} disabled={list.entries.length === 0}><Trash2 size={14} /> 목록 비우기</button>
           </>
         )}
         <button onClick={() => void call('exportCSV', kind, visible.map((entry) => entry.id))} disabled={list.entries.length === 0}>CSV로 내보내기</button>

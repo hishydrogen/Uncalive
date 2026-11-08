@@ -1,4 +1,5 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, shell, Tray, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, protocol, shell, Tray, type MenuItemConstructorOptions } from 'electron';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { CommandName } from '../shared/types';
@@ -23,7 +24,7 @@ protocol.registerSchemesAsPrivileged([
 
 const commands = new Set<CommandName>([
   'setSection', 'signIn', 'signOut', 'refreshScraps', 'stopLoading', 'addTargets', 'clearCollection', 'removeFromCollection',
-  'removeCheckedFromCollection', 'setChecked', 'checkUnsaved', 'startDownload', 'togglePause', 'cancelDownload', 'exportCSV',
+  'removeCheckedFromCollection', 'removeFromCollectionMany', 'undoRemoveFromCollection', 'setSelection', 'setChecked', 'checkUnsaved', 'startDownload', 'togglePause', 'cancelDownload', 'exportCSV',
   'setOptions', 'setUseAccountFolder', 'setAutoCheckHours', 'setAutoDownloadNew', 'checkNow', 'chooseDestination', 'openPost',
   'revealPost', 'revealFile', 'openLibraryFolder', 'reloadLibrary', 'searchLibrary',
 ]);
@@ -32,6 +33,13 @@ let model: AppModel;
 let mainWindow: BrowserWindow | undefined;
 let tray: Tray | undefined;
 let quitting = false;
+
+/** 이 운영체제에서 창 바탕에 쓸 수 있는 재질입니다. Windows 10과 Linux는 단색입니다. */
+export function windowMaterial(): 'vibrancy' | 'mica' | undefined {
+  if (process.platform === 'darwin') return 'vibrancy';
+  if (process.platform === 'win32' && Number(os.release().split('.')[2] ?? 0) >= 22000) return 'mica';
+  return undefined;
+}
 
 function resource(name: string): string {
   return isDev ? path.join(__dirname, '..', 'resources', name) : path.join(process.resourcesPath, name);
@@ -51,9 +59,15 @@ function createWindow(): BrowserWindow {
     title: appName,
     show: false,
     icon: resource('icon.png'),
-    backgroundColor: '#00000000',
-    // 맥에서는 제목 표시줄을 숨기고 사이드바 위에 창 단추를 둡니다.
-    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 18, y: 18 } } : {}),
+    // 맥은 사이드바 뒤로 바탕화면이 은은히 비치는 재질을, Windows 11은 Mica 재질을 씁니다. 그 밖에는 단색 바탕입니다.
+    backgroundColor: windowMaterial() ? '#00000000' : nativeTheme.shouldUseDarkColors ? '#1f1f1f' : '#f3f3f3',
+    ...(process.platform === 'darwin' ? {
+      titleBarStyle: 'hiddenInset' as const,
+      trafficLightPosition: { x: 18, y: 18 },
+      vibrancy: 'sidebar' as const,
+      visualEffectState: 'followWindow' as const,
+    } : {}),
+    ...(windowMaterial() === 'mica' ? { backgroundMaterial: 'mica' as const } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -241,6 +255,7 @@ if (!app.requestSingleInstanceLock()) {
     // 시험용으로 따로 띄울 때는 예전 앱의 설정을 읽지 않습니다.
     if (!process.env.UNCALIVE_PROFILE_DIR) await importLegacySettings(isDev ? 'io.github.hishydrogen.uncalive.dev' : 'io.github.hishydrogen.uncalive');
     model = new AppModel(process.env.UNCALIVE_DEFAULT_FOLDER ?? defaultFolder);
+    model.material = windowMaterial();
     registerMediaProtocol();
     registerIPC();
     buildMenu();

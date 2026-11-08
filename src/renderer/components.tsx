@@ -197,3 +197,57 @@ export function Dialog(props: { title: string; children: ReactNode; onClose: () 
     </div>
   );
 }
+
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
+interface ToastItem {
+  id: number;
+  text: string;
+  action?: ToastAction;
+  leaving?: boolean;
+}
+
+const toastListeners = new Set<(item: ToastItem) => void>();
+let nextToastID = 0;
+
+/** 화면 아래에 잠깐 알림을 띄웁니다. 실행 취소 같은 단추를 하나 붙일 수 있습니다. */
+export function showToast(text: string, action?: ToastAction): void {
+  const item = { id: nextToastID++, text, action };
+  toastListeners.forEach((listener) => listener(item));
+}
+
+export function ToastHost() {
+  const [items, setItems] = useState<ToastItem[]>([]);
+  useEffect(() => {
+    const leave = (id: number) => {
+      setItems((current) => current.map((item) => (item.id === id ? { ...item, leaving: true } : item)));
+      setTimeout(() => setItems((current) => current.filter((item) => item.id !== id)), 220);
+    };
+    const listener = (item: ToastItem) => {
+      // 새 알림이 오면 앞의 알림은 내립니다. 실행 취소는 가장 최근 작업에만 뜻이 있습니다.
+      setItems((current) => [...current.map((old) => ({ ...old, leaving: true })), item]);
+      setTimeout(() => setItems((current) => current.filter((old) => old.id === item.id || !old.leaving)), 220);
+      setTimeout(() => leave(item.id), item.action ? 6000 : 3500);
+    };
+    toastListeners.add(listener);
+    return () => { toastListeners.delete(listener); };
+  }, []);
+  return (
+    <div className="toasts" role="status" aria-live="polite">
+      {items.map((item) => (
+        <div key={item.id} className={`toast ${item.leaving ? 'leaving' : ''}`}>
+          <span>{item.text}</span>
+          {item.action && (
+            <button className="link" onClick={() => {
+              item.action?.run();
+              setItems((current) => current.map((old) => (old.id === item.id ? { ...old, leaving: true } : old)));
+            }}>{item.action.label}</button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}

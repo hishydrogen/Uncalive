@@ -5,6 +5,12 @@ import { log } from './log';
 
 const sessionCookie = 'arca.at';
 
+/** 아카라이브 로그인 아이디 규칙(영문으로 시작, 영문·숫자·밑줄 16자 이하)에 맞으면 소문자로 돌려줍니다. */
+export function normalizeLoginID(value: string | undefined): string | undefined {
+  const id = (value ?? '').trim();
+  return /^[a-z][a-z0-9_]{0,15}$/i.test(id) ? id.toLowerCase() : undefined;
+}
+
 function stateScript(selector: string): string {
   return `(function () {
   const title = document.title || '';
@@ -37,7 +43,8 @@ function isBlocked(url: string): boolean {
  */
 export class BrowserController implements PageSource {
   readonly session: Session;
-  onLoginDetected?: () => void;
+  /** 로그인을 마치면 불립니다. 로그인 창에 입력한 아이디를 알면 함께 넘깁니다. */
+  onLoginDetected?: (loginID?: string) => void;
   onChallengeChanged?: (active: boolean) => void;
   challengeTimeout = 300_000;
   pageTimeout = 30_000;
@@ -45,6 +52,8 @@ export class BrowserController implements PageSource {
   private window?: BrowserWindow;
   private privacy = true;
   private waitingForLogin = false;
+  /** 이번 로그인 창에서 입력한 아이디입니다. 비밀번호는 읽지 않습니다. */
+  private typedLoginID?: string;
   private loginWatch?: NodeJS.Timeout;
   private committed = false;
   private finished = false;
@@ -201,6 +210,7 @@ export class BrowserController implements PageSource {
 
   showLogin(): void {
     this.waitingForLogin = true;
+    this.typedLoginID = undefined;
     // 로그인 절차가 쓰는 외부 요소가 막히지 않도록 이 화면에서만 끕니다.
     this.privacy = false;
     const window = this.ensureWindow();
@@ -221,7 +231,10 @@ export class BrowserController implements PageSource {
         if (!this.waitingForLogin || busy) return;
         busy = true;
         try {
-          // 로그인 페이지에는 손대지 않습니다. Turnstile 함수를 바꾸면 Cloudflare가 변조로 보고 확인을 끝내지 않습니다.
+          // 로그인 페이지에는 손대지 않고 아이디 칸의 값만 읽습니다. Turnstile 함수를 바꾸면 Cloudflare가 변조로 보고 확인을 끝내지 않습니다.
+          const typed = await this.evaluate<string>("(document.querySelector('input[name=username]') || {}).value || ''");
+          const id = normalizeLoginID(typed);
+          if (id) this.typedLoginID = id;
           const current = await this.sessionValue();
           if (current !== undefined && current !== previous) this.finishLogin();
         } finally {
@@ -238,7 +251,7 @@ export class BrowserController implements PageSource {
     if (this.loginWatch) clearInterval(this.loginWatch);
     this.privacy = true;
     this.hide();
-    this.onLoginDetected?.();
+    this.onLoginDetected?.(this.typedLoginID);
   }
 
   /** 로그인 창을 닫으면 그 시점의 로그인 여부를 확인합니다. */

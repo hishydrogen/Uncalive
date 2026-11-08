@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Archive, ArrowDownCircle, Bookmark, Images, Link2, Settings, UserCircle2 } from 'lucide-react';
 import { call, useAppState } from './api';
-import { Spinner } from './components';
+import { Spinner, ToastHost } from './components';
 import { DownloadView } from './views/DownloadView';
 import { EntryListView, initialFilters, type Filters } from './views/EntryListView';
 import { GalleryView } from './views/GalleryView';
@@ -16,7 +16,7 @@ export function App() {
   if (!state) return <Spinner label="불러오는 중입니다" />;
 
   return (
-    <div className={`app platform-${state.platform}`}>
+    <div className={`app platform-${state.platform} ${state.material ? `material-${state.material}` : ''}`}>
       <Sidebar state={state} />
       <main className="content">
         {state.section === 'scraps' && (
@@ -30,13 +30,31 @@ export function App() {
         {state.section === 'gallery' && <GalleryView state={state} />}
         {state.section === 'settings' && <SettingsView state={state} />}
       </main>
+      <ToastHost />
     </div>
   );
 }
 
 function Sidebar({ state }: { state: AppState }) {
+  // 고른 항목 뒤의 배경이 다음 항목으로 미끄러져 갑니다.
+  const items = useRef(new Map<Section, HTMLButtonElement>());
+  const indicator = useRef<HTMLDivElement>(null);
+  const placed = useRef(false);
+  useLayoutEffect(() => {
+    const target = items.current.get(state.section);
+    const element = indicator.current;
+    if (!target || !element) return;
+    if (!placed.current) element.style.transition = 'none';
+    element.style.transform = `translateY(${target.offsetTop}px)`;
+    element.style.height = `${target.offsetHeight}px`;
+    if (!placed.current) {
+      void element.offsetHeight;
+      element.style.transition = '';
+      placed.current = true;
+    }
+  }, [state.section]);
   const item = (section: Section, label: string, icon: React.ReactNode, badge?: string | number) => (
-    <button className={`nav-item ${state.section === section ? 'selected' : ''}`} onClick={() => void call('setSection', section)} aria-current={state.section === section}>
+    <button ref={(button) => { if (button) items.current.set(section, button); }} className={`nav-item ${state.section === section ? 'selected' : ''}`} onClick={() => void call('setSection', section)} aria-current={state.section === section}>
       {icon}
       <span>{label}</span>
       {badge !== undefined && badge !== 0 && badge !== '' && <span className="badge">{badge}</span>}
@@ -45,6 +63,7 @@ function Sidebar({ state }: { state: AppState }) {
   return (
     <aside className="sidebar">
       <nav>
+        <div className="nav-indicator" ref={indicator} aria-hidden />
         {item('scraps', '스크랩', <Bookmark size={17} />, state.newScrapCount)}
         {item('collection', '주소 수집', <Link2 size={17} />, state.collection.entries.length)}
         {item('downloads', '다운로드', <ArrowDownCircle size={17} />, state.job && ['running', 'paused', 'waitingForChallenge'].includes(state.job.status) ? '진행 중' : undefined)}
@@ -59,6 +78,7 @@ function Sidebar({ state }: { state: AppState }) {
           {state.login === 'loggedIn' && (
             <>
               <strong title={state.username}>{state.username ?? '로그인됨'}</strong>
+              {state.loginID && <span className="caption" title="보관함은 이 아이디로 나눕니다">@{state.loginID}</span>}
               <button className="link" onClick={() => void call('signOut')} disabled={state.job?.status === 'running' || state.job?.status === 'paused'}>로그아웃</button>
             </>
           )}

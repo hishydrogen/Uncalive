@@ -8,6 +8,7 @@ import { resolveRelative, writeAtomic } from '../core/fsutil';
 import { csvData, loadLibrary, matches, snippet, type ArchivedPost } from '../core/library';
 import { CancellationError, entryDate, errorMessage, UncaliveError, type ScrapEntry } from '../core/models';
 import { sanitize } from '../core/naming';
+import { chooseAccountFolder } from '../core/accounts';
 import { mergeOptions, type ArchiveSource, type DownloadOptions, type ListScope } from '../core/options';
 import { parseTargets } from '../core/parser';
 import { DownloadQueue } from '../core/queue';
@@ -143,7 +144,12 @@ export class AppModel {
 
   section: Section = 'scraps';
   login: LoginState = 'unknown';
+  /** 사이트에 보이는 닉네임입니다. 바뀌거나 다른 계정과 겹칠 수 있어 보관함 구분에는 쓰지 않습니다. */
   username?: string;
+  /** 로그인 창에서 입력한 아이디입니다. 바뀌지 않으므로 계정마다 보관함을 나누는 기준으로 씁니다. */
+  loginID?: string;
+  /** 아이디 → 그 계정의 보관함 폴더 이름(저장 위치 기준) */
+  private accounts: Record<string, { folder?: string; nickname?: string }>;
   useAccountFolder: boolean;
   options: DownloadOptions;
   readonly scraps = new EntryList('scraps');
@@ -158,6 +164,8 @@ export class AppModel {
   autoDownloadNew: boolean;
 
   window?: BrowserWindow;
+  /** 창 바탕에 쓰는 운영체제 재질입니다. 있으면 화면이 사이드바를 투명하게 둡니다. */
+  material?: 'vibrancy' | 'mica';
   private listControl?: RunControl;
   private listTask?: Promise<void>;
   private jobTask?: Promise<void>;
@@ -167,16 +175,19 @@ export class AppModel {
   private sendTimer?: NodeJS.Timeout;
   private recordsGeneration = 0;
   private libraryGeneration = 0;
+  private lastRemoved?: { root: string; removed: Array<{ index: number; entry: ScrapEntry; checked: boolean }> };
 
   constructor(private readonly defaultFolder: string) {
     this.username = this.settings.get<string>('username');
+    this.loginID = this.settings.get<string>('loginID');
+    this.accounts = this.settings.get<Record<string, { folder?: string; nickname?: string }>>('accounts') ?? {};
     this.useAccountFolder = this.settings.get<boolean>('useAccountFolder') ?? true;
     this.options = mergeOptions(this.settings.get<Partial<DownloadOptions>>('downloadOptions'), path.isAbsolute(defaultFolder) ? defaultFolder : path.join(os.homedir(), defaultFolder));
     this.autoCheckHours = this.settings.get<number>('autoCheckHours') ?? 0;
     this.autoDownloadNew = this.settings.get<boolean>('autoDownloadNewScraps') ?? false;
 
     this.browser.onChallengeChanged = (active) => this.challengeChanged(active);
-    this.browser.onLoginDetected = () => this.loginCompleted();
+    this.browser.onLoginDetected = (loginID) => this.loginCompleted(loginID);
     void this.loadCollection();
   }
 
@@ -207,8 +218,8 @@ export class AppModel {
     const state: Partial<AppState> = {};
     if (has('meta')) {
       Object.assign(state, {
-        platform: process.platform, version: app.getVersion(), section: this.section, login: this.login,
-        username: this.username, useAccountFolder: this.useAccountFolder, options: this.options,
+        platform: process.platform, version: app.getVersion(), material: this.material, section: this.section, login: this.login,
+        username: this.username, loginID: this.loginID, useAccountFolder: this.useAccountFolder, options: this.options,
         libraryRoot: this.libraryRoot, isBusy: this.isBusy, newScrapCount: this.newScrapCount,
         lastCheck: this.lastCheck, autoCheckHours: this.autoCheckHours, autoDownloadNew: this.autoDownloadNew,
         isLoadingLibrary: this.isLoadingLibrary,
@@ -275,8 +286,10 @@ export class AppModel {
   }
 
   /** 읽고 있던 목록이 있어도 새 계정의 목록을 바로 읽습니다. */
-  private loginCompleted(): void {
+  private loginCompleted(loginID?: string): void {
     this.login = 'loggedIn';
+    // 아이디를 못 읽었으면(창을 닫아 로그인을 마친 경우 등) 예전처럼 닉네임으로 보관함을 찾습니다.
+    this.switchAccount(loginID);
     this.changed();
     void (async () => {
       this.listControl?.cancel();
@@ -290,6 +303,7 @@ export class AppModel {
     await this.listTask;
     await this.browser.signOut();
     this.login = 'loggedOut';
+    this.switchAccount(undefined);
     this.setUsername(undefined);
     this.scraps.entries = [];
     this.scraps.checked = new Set();
@@ -297,10 +311,41 @@ export class AppModel {
   }
 
   private setUsername(name: string | undefined): void {
-    const previous = this.username;
+    const previousRoot = this.libraryRoot;
     this.username = name;
     this.settings.set('username', name);
-    if (name !== previous) this.libraryDidChange();
+    if (name && this.loginID) this.assignAccountFolder(this.loginID, name);
+    if (this.libraryRoot !== previousRoot) this.libraryDidChange();
+    this.changed();
+  }
+
+  private switchAccount(loginID: string | undefined): void {
+    const previousRoot = this.libraryRoot;
+    const changedAccount = loginID !== undefined && loginID !== this.loginID;
+    this.loginID = loginID;
+    this.settings.set('loginID', loginID);
+    if (loginID) this.accounts[loginID] ??= {};
+    // 다른 계정으로 바뀌면 앞 계정의 닉네임으로 보관함을 찾지 않도록 이 계정의 닉네임(모르면 없음)으로 바꿉니다.
+    if (changedAccount) {
+      this.username = this.accounts[loginID].nickname;
+      this.settings.set('username', this.username);
+    }
+    if (this.libraryRoot !== previousRoot) this.libraryDidChange();
+    this.changed();
+  }
+
+  /**
+   * 계정의 보관함 폴더를 정합니다. 예전처럼 닉네임 이름의 보관함이 있고 다른 계정이 쓰고 있지 않으면 그대로 이어 쓰고,
+   * 없으면 아이디 이름으로 만듭니다. 한 번 정한 폴더는 닉네임이 바뀌어도 그대로 씁니다.
+   */
+  private assignAccountFolder(loginID: string, nickname: string): void {
+    const account = (this.accounts[loginID] ??= {});
+    account.nickname = nickname;
+    if (!account.folder) {
+      account.folder = chooseAccountFolder(loginID, nickname, this.accounts, (name) => existsSync(path.join(this.options.destination, name)));
+      log(`계정 보관함 정함: ${account.folder === sanitize(loginID, 60) ? '아이디 폴더' : '예전 닉네임 폴더를 이어 씀'}`);
+    }
+    this.settings.set('accounts', this.accounts);
   }
 
   // MARK: - 목록 공통
@@ -524,13 +569,52 @@ export class AppModel {
     this.changed('collection');
   }
 
-  removeCheckedFromCollection(): void {
-    const ids = this.collection.checked;
-    if (ids.size === 0) return;
-    this.collection.entries = this.collection.entries.filter((entry) => !ids.has(entry.id));
-    this.collection.checked = new Set();
+  removeCheckedFromCollection(): number {
+    return this.removeFromCollectionMany([...this.collection.checked]);
+  }
+
+  /** 글 여러 개를 목록에서 뺍니다. 바로 앞의 제거는 되돌릴 수 있도록 자리와 함께 기억합니다. 뺀 글 수를 돌려줍니다. */
+  removeFromCollectionMany(ids: string[]): number {
+    const targets = new Set(ids);
+    const removed: Array<{ index: number; entry: ScrapEntry; checked: boolean }> = [];
+    this.collection.entries.forEach((entry, index) => {
+      if (targets.has(entry.id)) removed.push({ index, entry, checked: this.collection.checked.has(entry.id) });
+    });
+    if (removed.length === 0) return 0;
+    this.collection.entries = this.collection.entries.filter((entry) => !targets.has(entry.id));
+    targets.forEach((id) => this.collection.checked.delete(id));
+    this.lastRemoved = { root: this.libraryRoot, removed };
     this.saveCollection();
     this.changed('collection');
+    return removed.length;
+  }
+
+  /** 바로 앞에 뺀 글을 원래 자리로 되돌립니다. 되돌린 글 수를 돌려줍니다. */
+  undoRemoveFromCollection(): number {
+    const last = this.lastRemoved;
+    this.lastRemoved = undefined;
+    if (!last || last.root !== this.libraryRoot) return 0;
+    const known = new Set(this.collection.entries.map((entry) => entry.id));
+    const entries = [...this.collection.entries];
+    let restored = 0;
+    for (const { index, entry, checked } of last.removed) {
+      if (known.has(entry.id)) continue;
+      entries.splice(Math.min(index, entries.length), 0, entry);
+      if (checked) this.collection.checked.add(entry.id);
+      restored += 1;
+    }
+    this.collection.entries = entries;
+    this.saveCollection();
+    this.changed('collection');
+    return restored;
+  }
+
+  /** 고른 글을 통째로 바꿉니다. 화면에서 클릭, 끌어 고르기, 단축키로 고를 때 씁니다. */
+  setSelection(kind: ListKind, ids: string[]): void {
+    const list = this.list(kind);
+    const known = new Set(list.entries.map((entry) => entry.id));
+    list.checked = new Set(ids.filter((id) => known.has(id)));
+    this.changed(kind);
   }
 
   /** 글 주소는 바로 더하고, 목록 주소는 지정한 범위만큼 읽습니다. */
@@ -718,6 +802,8 @@ export class AppModel {
   /** 실제로 쓰는 보관함 폴더입니다. */
   get libraryRoot(): string {
     if (!this.useAccountFolder) return this.options.destination;
+    const folder = this.loginID ? this.accounts[this.loginID]?.folder : undefined;
+    if (folder) return path.join(this.options.destination, folder);
     const name = sanitize(this.username ?? noAccountFolder, 60);
     return path.join(this.options.destination, name === '' ? noAccountFolder : name);
   }
