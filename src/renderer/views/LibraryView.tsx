@@ -36,7 +36,7 @@ export function channelsOf(library: LibraryItem[]): Array<{ id: string; name: st
 export function SourcePicker(props: { value?: ArchiveSource; onChange: (value?: ArchiveSource) => void }) {
   return (
     <Segmented<string> label="출처" value={props.value ?? ''} onChange={(value) => props.onChange(value === '' ? undefined : value as ArchiveSource)} options={[
-      { value: '', label: '전체' }, { value: '스크랩', label: '스크랩' }, { value: '주소 수집', label: '링크' },
+      { value: '', label: '전체' }, { value: 'scrap', label: '스크랩' }, { value: 'link', label: '링크' },
     ]} />
   );
 }
@@ -194,7 +194,7 @@ export function LibraryView({ state }: { state: AppState }) {
       )}
       {trash && (
         <Dialog title={`${trash.length}개 글을 휴지통으로 옮길까요?`} onClose={() => setTrash(undefined)} width={440}>
-          <p className="muted">받은 사진과 동영상, 오프라인 페이지가 폴더째 휴지통으로 옮겨집니다. 휴지통에서 되살릴 수 있습니다. 받는 중인 글은 옮기지 않습니다.</p>
+          <p className="muted">받은 사진과 동영상, 오프라인 페이지가 폴더째 휴지통으로 옮겨집니다. 휴지통에서 되돌려 놓으면 보관함에 다시 나타납니다. 받는 중인 글은 옮기지 않습니다.</p>
           <div className="dialog-buttons">
             <button onClick={() => setTrash(undefined)} autoFocus>취소</button>
             <button className="primary danger-fill" onClick={() => {

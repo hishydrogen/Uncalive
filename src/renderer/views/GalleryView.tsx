@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, ExternalLink, FolderOpen, Images, RotateCw, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { call, mediaURL } from '../api';
-import { categoriesOf, CategoryTabs, EmptyState, Header, SearchField, Segmented, Select, useContextMenu } from '../components';
+import { categoriesOf, CategoryTabs, EmptyState, Header, SearchField, Segmented, Select, showToast, useContextMenu } from '../components';
 import type { AppState, ArchiveSource, LibraryItem, LibraryMedia } from '../../shared/types';
 import { channelsOf, SourcePicker, Thumbnail } from './LibraryView';
 import { useCollectionKeys, useMarquee, useSelection } from '../selection';
@@ -54,12 +54,25 @@ export function GalleryView({ state }: { state: AppState }) {
   const paths = useMemo(() => media.map((file) => file.path), [media]);
   const isMac = state.platform === 'darwin';
   const selection = useSelection(paths);
+  const copyFiles = (picked: string[]) => {
+    void call('copyFiles', picked).then((count) => {
+      if (count === 1 && picked.length === 1) showToast('복사했습니다. 다른 앱에 붙여 넣을 수 있습니다');
+      else if (count > 0) showToast(`파일 ${count}개를 복사했습니다. ${isMac ? 'Finder' : '파일 탐색기'}에 붙여 넣을 수 있습니다`);
+    });
+  };
+  const exportFiles = (picked: string[]) => {
+    void call('exportFiles', picked).then((count) => { if (count > 0) showToast(`파일 ${count}개를 내보냈습니다`); });
+  };
+  const openPosts = (ids: string[]) => {
+    if (ids.length > 5) showToast('한 번에 다섯 개까지만 엽니다');
+    for (const id of ids.slice(0, 5)) void call('openPost', id);
+  };
   const openAt = (path: string) => {
     const index = paths.indexOf(path);
     if (index >= 0) setPreview(index);
   };
   const marquee = useMarquee(selection, isMac, { onOpen: openAt });
-  useCollectionKeys(selection, marquee.columns, isMac, { onOpen: (ids) => openAt(ids[0]), onSpace: openAt });
+  useCollectionKeys(selection, marquee.columns, isMac, { onOpen: (ids) => openAt(ids[0]), onSpace: openAt, onCopy: (ids) => copyFiles(ids) });
   useEffect(() => {
     if (selection.cursor) marquee.items.current.get(selection.cursor)?.scrollIntoView({ block: 'nearest' });
   }, [selection.cursor]);
@@ -95,10 +108,15 @@ export function GalleryView({ state }: { state: AppState }) {
                 title={file.item.title}
                 onContextMenu={(event) => {
                   if (!selection.now().has(file.path)) selection.click(file.path, { toggle: false, range: false });
+                  const picked = selection.now().has(file.path) ? [...selection.now()] : [file.path];
+                  const many = picked.length > 1;
+                  const posts = [...new Set(media.filter((item) => picked.includes(item.path)).map((item) => item.item.id))];
                   menu.open(event, [
                     { label: '크게 보기', onClick: () => openAt(file.path) },
-                    { label: '글 열기', onClick: () => void call('openPost', file.item.id) },
+                    { label: many ? `${picked.length}개 복사` : '복사', onClick: () => copyFiles(picked) },
+                    { label: many ? `${picked.length}개 다른 폴더로 내보내기…` : '다른 폴더로 내보내기…', onClick: () => exportFiles(picked) },
                     { label: '폴더에서 보기', onClick: () => void call('revealFile', file.path) },
+                    { label: posts.length > 1 ? `글 ${Math.min(posts.length, 5)}개 열기` : '글 열기', onClick: () => openPosts(posts) },
                   ]);
                 }}
               >
@@ -120,7 +138,7 @@ const clampZoom = (value: number) => Math.min(maxZoom, Math.max(minZoom, value))
 
 /**
  * 크게 보기입니다. 스페이스 바나 Esc로 닫고, 방향키로 앞뒤 파일을 봅니다.
- * 휠이나 두 손가락 벌리기, 두 번 누르기, +와 -로 확대하고, 확대한 뒤에는 끌어서 옮깁니다. R로 돌리고 0으로 되돌립니다.
+ * 휠이나 두 손가락 벌리기, 두 번 누르기, +와 -로 확대하고, 확대한 뒤에는 끌어서 옮깁니다. R로 돌리고 0으로 되돌립니다. ⌘C로 복사합니다.
  */
 function Lightbox(props: { media: Media[]; index: number; onIndex: (index: number) => void; onClose: () => void }) {
   const file = props.media[props.index];
@@ -165,6 +183,11 @@ function Lightbox(props: { media: Media[]; index: number; onIndex: (index: numbe
         apply({ zoom: zoom / 1.25 });
       } else if (event.key === '0') {
         reset();
+      } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        void call('copyFiles', [file.path]).then((count) => { if (count > 0) showToast('복사했습니다'); });
+      } else if (event.metaKey || event.ctrlKey) {
+        return;
       } else if (event.key.toLowerCase() === 'r') {
         apply({ rotation: rotation + (event.shiftKey ? -90 : 90) });
       }
@@ -178,7 +201,10 @@ function Lightbox(props: { media: Media[]; index: number; onIndex: (index: numbe
     const factor = Math.exp(-event.deltaY * (event.ctrlKey ? 0.01 : 0.002));
     apply({ zoom: zoom * factor }, false);
   };
+  // 사진을 끌어 옮긴 뒤 손을 뗀 것을 '여백 누르기'로 보지 않도록 기억합니다.
+  const moved = useRef(false);
   const onPointerDown = (event: React.PointerEvent) => {
+    moved.current = false;
     if (event.button !== 0 || zoom === 1) return;
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     drag.current = { x: event.clientX, y: event.clientY, ox: offset.x, oy: offset.y, moved: false };
@@ -187,6 +213,7 @@ function Lightbox(props: { media: Media[]; index: number; onIndex: (index: numbe
     const start = drag.current;
     if (!start) return;
     start.moved = true;
+    moved.current = true;
     apply({ offset: { x: start.ox + event.clientX - start.x, y: start.oy + event.clientY - start.y } }, false);
   };
   const onPointerUp = () => { drag.current = undefined; };
@@ -215,7 +242,8 @@ function Lightbox(props: { media: Media[]; index: number; onIndex: (index: numbe
         <button className="plain" title="닫기" onClick={props.onClose}><X size={18} /></button>
       </div>
       <button className="lightbox-nav left" aria-label="이전" onClick={() => move(-1)}><ChevronLeft size={28} /></button>
-      <div className="lightbox-stage" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+      <div className="lightbox-stage" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+        onClick={(event) => { if (event.target === event.currentTarget && !moved.current) props.onClose(); }}>
         {file.isVideo ? <video key={file.path} {...mediaProps} controls autoPlay /> : <img key={file.path} {...mediaProps} alt="" />}
       </div>
       <button className="lightbox-nav right" aria-label="다음" onClick={() => move(1)}><ChevronRight size={28} /></button>

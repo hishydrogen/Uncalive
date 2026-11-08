@@ -48,8 +48,11 @@ function General({ state }: { state: AppState }) {
             { value: 'system', label: '시스템' }, { value: 'light', label: '라이트' }, { value: 'dark', label: '다크' },
           ]} />
         </Row>
-        <Toggle label="알림 보내기" checked={state.notifications} onChange={(value) => void call('setNotifications', value)} />
-        <p className="caption">다운로드를 마치거나 멈췄을 때, 보안 확인이 필요할 때, 새 스크랩을 찾았을 때 운영체제 알림으로 알립니다. 앱 창을 보고 있을 때는 띄우지 않으며, 알림에 글 제목은 넣지 않습니다.</p>
+        <Row label="알림 보내기">
+          <button onClick={() => void call('testNotification')} disabled={!state.notifications}>시험 알림 보내기</button>
+          <Toggle label="" checked={state.notifications} onChange={(value) => void call('setNotifications', value)} />
+        </Row>
+        <p className="caption">다운로드를 마치거나 멈췄을 때, 보안 확인이 필요할 때, 새 스크랩을 찾았을 때 운영체제 알림으로 알립니다. 앱 창을 보고 있을 때는 띄우지 않으며, 알림에 글 제목은 넣지 않습니다. 시험 알림이 오지 않으면 운영체제 설정의 알림에서 언카라이브를 허용해 주세요.</p>
       </section>
 
       <section className="card">

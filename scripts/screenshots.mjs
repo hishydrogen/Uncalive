@@ -11,7 +11,7 @@ const out = path.resolve(process.argv[2] ?? 'docs/screenshots');
 const dark = process.argv.includes('--dark');
 mkdirSync(out, { recursive: true });
 const sandbox = mkdtempSync(path.join(os.tmpdir(), 'uncalive-shots-'));
-const root = path.join(sandbox, 'library', '로그인 안 함');
+const root = path.join(sandbox, 'library', 'Guest');
 
 /** 위아래 두 색이 섞이는 그림을 만듭니다. */
 function picture(width, height, top, bottom, band) {
@@ -76,7 +76,7 @@ const state = { version: 1, posts: {} };
 const collection = [];
 posts.forEach(([id, channel, title, category, author], index) => {
   const channelName = channels.find(([slug]) => slug === channel)[1];
-  const folder = `주소 수집/${title}`;
+  const folder = `Links/${title}`;
   const files = {};
   const count = 1 + (index % 3);
   for (let n = 0; n < count; n += 1) {

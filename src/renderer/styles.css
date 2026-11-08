@@ -238,8 +238,9 @@ table.entries { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .entries td { padding: 0 8px; height: 34px; border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .entries tbody tr { content-visibility: auto; contain-intrinsic-size: auto 35px; transition: background var(--fast) var(--ease); }
 .entries tbody tr:hover { background: var(--hover); }
-.entries tbody tr.checked { background: color-mix(in srgb, var(--accent) 13%, transparent); }
-.entries tbody tr.checked:hover { background: color-mix(in srgb, var(--accent) 19%, transparent); }
+.entries tbody tr.checked { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.entries tbody tr.highlighted { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.entries tbody tr.highlighted:hover { background: color-mix(in srgb, var(--accent) 23%, transparent); }
 .entries tbody tr.cursor td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .entries td.title { font-weight: 500; }
 .entries .check { text-align: center; }
@@ -404,6 +405,8 @@ progress:indeterminate { background: linear-gradient(90deg, transparent 0%, var(
 html.capture .sidebar { background: var(--sidebar) !important; }
 
 /* 맥은 창 단추(신호등)가 화면 위에 겹쳐 그려지므로, 창 전체를 덮는 크게 보기의 제목을 그만큼 비켜 둡니다. */
+/* 창 전체를 덮는 화면은 아래 사이드바와 도구 막대의 '창 끌기' 영역을 지웁니다. 그렇지 않으면 그 자리의 클릭을 운영체제가 가져갑니다. */
+.lightbox, .dialog-backdrop, .context-menu, .toasts { -webkit-app-region: no-drag; }
 html.platform-darwin .lightbox-bar { padding-left: 92px; -webkit-app-region: drag; }
 html.platform-darwin .lightbox-bar button { -webkit-app-region: no-drag; }
 

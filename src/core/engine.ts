@@ -11,7 +11,7 @@ import {
   type MediaRef, type ParsedComment, type ParsedPost, type ScrapEntry,
 } from './models';
 import { baseName, folderName, sanitize } from './naming';
-import type { DownloadOptions, ListScope, PageRange } from './options';
+import { sourceFolders, type DownloadOptions, type ListScope, type PageRange } from './options';
 import { commentPageURL, listURL, parseCommentPage, parsePost, parseScrapList, scrapListURL } from './parser';
 import { ResumeStore } from './resume';
 
@@ -294,7 +294,7 @@ export class ScrapEngine {
 
     let preferred = folderName(post, options);
     if (options.groupByChannel) preferred = sanitize(post.channel, 50) + '/' + preferred;
-    if (options.source) preferred = options.source + '/' + preferred;
+    if (options.source) preferred = sourceFolders[options.source] + '/' + preferred;
     // 이미 받은 글은 어느 목록에서 다시 받든 처음 폴더를 그대로 씁니다.
     const relativeFolder = store.reserveFolder(post, preferred, entry.channelName);
     const folder = resolveRelative(options.destination, relativeFolder);

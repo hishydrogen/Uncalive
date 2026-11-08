@@ -5,7 +5,7 @@ import { mergeOptions } from '../src/core/options';
 const options = {
   destination: 'file:///Users/someone/%EB%B3%B4%EA%B4%80/', quality: 'balanced', includeEmoticons: true,
   pages: { first: 1 }, archive: { offlineHTML: true, includeComments: false, metadataJSON: true, webArchive: false, rawHTML: false },
-  pageDelay: 3, source: '스크랩',
+  pageDelay: 3, source: 'scrap',
 };
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

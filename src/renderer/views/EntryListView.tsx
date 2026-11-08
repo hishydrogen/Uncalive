@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, Bookmark, CheckCircle2, Circle, Clock, Download, Link2, Loader2, Plus, RefreshCw, SlidersHorizontal, Square, Trash2, UserCircle2, X } from 'lucide-react';
 import { call, formatShortDate, qualityTitles, usePreference } from '../api';
 import { EmptyState, Header, SearchField, Select, showToast, Spinner, useContextMenu, usePresence } from '../components';
-import { useMarquee, useSelection } from '../selection';
+import { useChecks, useMarquee, useSelection } from '../selection';
 import type { AppState, ListKind, PostStatus, ScrapEntry } from '../../shared/types';
 import { AddURLsDialog } from './AddURLsDialog';
 import { OptionsPanel } from './OptionsPanel';
@@ -87,7 +87,7 @@ const statusInfo: Record<LiveStatus, { label: string; detail: string }> = {
 function SelectionSummary(props: { state: AppState; entries: ScrapEntry[]; checked: Set<string>; visible: string[]; isMac: boolean }) {
   const { state, entries, checked } = props;
   if (checked.size === 0) {
-    return <span className="selection-summary muted">글을 고르세요 · {props.isMac ? '⌘A' : 'Ctrl+A'}로 모두 고르거나 끌어서 고를 수 있습니다</span>;
+    return <span className="selection-summary muted">다운로드할 글에 체크하세요 · 줄을 고른 뒤 스페이스 바로도 체크할 수 있습니다</span>;
   }
   const counts = { new: 0, incomplete: 0, saved: 0 };
   for (const entry of entries) if (checked.has(entry.id)) counts[statusOf(state, entry)] += 1;
@@ -100,7 +100,7 @@ function SelectionSummary(props: { state: AppState; entries: ScrapEntry[]; check
   ].filter(Boolean);
   return (
     <span className="selection-summary">
-      <strong>{checked.size}개 선택</strong>
+      <strong>{checked.size}개 체크</strong>
       {parts.map((part, index) => <span key={index} className="summary-part">{part}</span>)}
       {hidden > 0 && <span className="summary-part hidden-note" title="채널, 상태, 기간, 검색 조건 때문에 목록에 보이지 않는 글입니다.">목록에 안 보이는 글 {hidden}개 포함</span>}
     </span>
@@ -182,7 +182,10 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
   };
   const live = useMemo(() => ({ active: new Set(state.job?.activeIDs ?? []), waiting: new Set(state.job?.waitingIDs ?? []) }), [state.job?.activeIDs, state.job?.waitingIDs]);
   const visibleIDs = useMemo(() => visible.map((entry) => entry.id), [visible]);
-  const selection = useSelection(visibleIDs, { kind, checked: list.checked });
+  // 두 가지를 따로 둡니다. 체크(다운로드할 글)는 체크 상자와 스페이스 바로만 바뀌고,
+  // 강조(보라색)는 Finder처럼 누르기, 끌기, 방향키로 바뀝니다. 다른 곳을 잘못 눌러도 체크는 풀리지 않습니다.
+  const checks = useChecks(kind, list.checked);
+  const selection = useSelection(visibleIDs);
   // 마우스: 줄을 누르면 고르고, 누른 채 끌면 상자 안의 줄을 고릅니다. 두 번 누르면 받은 글은 열고, 아니면 원문을 엽니다.
   const marquee = useMarquee(selection, state.platform === 'darwin', {
     onOpen: (id) => {
@@ -192,9 +195,25 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
     },
   });
   const rows = marquee.items;
-  const checked = selection.selected;
+  const checked = checks.checked;
+  const highlighted = selection.selected;
   const allVisibleChecked = visible.length > 0 && visible.every((entry) => checked.has(entry.id));
   const checkedCount = checked.size;
+
+  /** 체크를 바꿉니다. 여러 글의 체크를 한꺼번에 풀면 되돌릴 수 있게 알립니다. */
+  const setChecks = useCallback((ids: string[], value: boolean) => {
+    const before = checks.set(ids, value);
+    const lost = [...before].filter((id) => !checks.now().has(id)).length;
+    if (!value && lost > 1) showToast(`${lost}개의 체크를 풀었습니다`, { label: '실행 취소', run: () => checks.commit(before) });
+  }, [checks]);
+
+  /** 스페이스 바와 메뉴입니다. 강조한 글이 모두 체크되어 있으면 풀고, 아니면 모두 체크합니다. */
+  const toggleHighlighted = useCallback(() => {
+    const targets = [...selection.now()];
+    if (targets.length === 0 && selection.cursor) targets.push(selection.cursor);
+    if (targets.length === 0) return;
+    setChecks(targets, !targets.every((id) => checks.now().has(id)));
+  }, [selection, checks, setChecks]);
 
   /** 목록에서 빼고, 실행 취소를 알림에 붙입니다. */
   const remove = useCallback(async (ids: string[]) => {
@@ -203,7 +222,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
     if (count > 0) showToast(`${count}개를 목록에서 뺐습니다`, { label: '실행 취소', run: () => void call('undoRemoveFromCollection') });
   }, []);
 
-  // 키보드: ⌘A(Ctrl+A) 모두 선택, Esc 선택 해제, 방향키 이동, 스페이스 바 넣고 빼기, Delete 빼기, ⌘Z 되돌리기, Enter 다운로드.
+  // 키보드: ⌘A(Ctrl+A) 모두 강조, Esc 강조 풀기, 방향키 이동, 스페이스 바 강조한 글 체크, Delete 빼기, ⌘Z 되돌리기, Enter 다운로드.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (showAdd || event.defaultPrevented) return;
@@ -224,26 +243,28 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
       } else if (key === 'ArrowDown' || key === 'ArrowUp') {
         event.preventDefault();
         selection.move(key === 'ArrowDown' ? 1 : -1, event.shiftKey);
-      } else if (key === ' ' && selection.cursor && target?.tagName !== 'BUTTON') {
+      } else if (key === ' ' && target?.tagName !== 'BUTTON') {
         event.preventDefault();
-        selection.toggle(selection.cursor);
+        toggleHighlighted();
       } else if (key === 'Delete' || key === 'Backspace') {
-        const targets = selection.now();
-        if (targets.size === 0) return;
+        const targets = [...selection.now()];
+        if (targets.length === 0) return;
         event.preventDefault();
         if (isScraps) {
-          selection.clear();
-          showToast('스크랩은 아카라이브에서만 지울 수 있어 선택만 해제했습니다');
+          setChecks(targets, false);
+          showToast('스크랩은 아카라이브에서만 지울 수 있어, 강조한 글의 체크만 풀었습니다');
         } else {
-          void remove([...targets]);
+          selection.clear();
+          void remove(targets);
         }
       } else if (key === 'Enter' && target?.tagName !== 'BUTTON') {
-        if (selection.now().size > 0 && !loading) void call('startDownload', kind);
+        if (checks.now().size > 0) void call('startDownload', kind);
+        else showToast('다운로드할 글에 체크하세요. 강조한 글은 스페이스 바로 체크합니다');
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selection, checked, checkedCount, loading, showAdd, kind, isScraps, isMac, remove]);
+  }, [selection, checks, showAdd, kind, isScraps, isMac, remove, toggleHighlighted, setChecks]);
 
   // 커서가 옮겨 가면 그 줄이 보이게 합니다.
   useEffect(() => {
@@ -313,7 +334,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
             <thead>
               <tr>
                 <th className="check">
-                  <input type="checkbox" aria-label="보이는 글 모두 선택" checked={allVisibleChecked} onChange={(event) => (event.target.checked ? selection.selectAll() : selection.clear())} />
+                  <input type="checkbox" aria-label="보이는 글 모두 체크" checked={allVisibleChecked} onChange={(event) => setChecks(visibleIDs, event.target.checked)} />
                 </th>
                 <th>제목</th>
                 {resizable.map((column) => (
@@ -338,21 +359,24 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
                     key={entry.id}
                     data-id={entry.id}
                     ref={marquee.register(entry.id)}
-                    className={`${checked.has(entry.id) ? 'checked' : ''} ${selection.cursor === entry.id ? 'cursor' : ''}`}
-                    aria-selected={checked.has(entry.id)}
+                    className={`${checked.has(entry.id) ? 'checked' : ''} ${highlighted.has(entry.id) ? 'highlighted' : ''} ${selection.cursor === entry.id ? 'cursor' : ''}`}
+                    aria-selected={highlighted.has(entry.id)}
                     onContextMenu={(event) => {
-                      // 고르지 않은 줄에서 메뉴를 열면 그 줄만 고릅니다(Finder와 같습니다).
-                      const targets = checked.has(entry.id) ? [...checked] : [entry.id];
-                      if (!checked.has(entry.id)) selection.click(entry.id, { toggle: false, range: false });
+                      // 강조하지 않은 줄에서 메뉴를 열면 그 줄만 강조합니다(Finder와 같습니다). 메뉴는 강조한 글에 적용됩니다.
+                      const targets = selection.now().has(entry.id) ? [...selection.now()] : [entry.id];
+                      if (!selection.now().has(entry.id)) selection.click(entry.id, { toggle: false, range: false });
+                      const many = targets.length > 1 ? ` (${targets.length}개)` : '';
+                      const allChecked = targets.every((id) => checks.now().has(id));
                       menu.open(event, [
+                        { label: allChecked ? `체크 풀기${many}` : `체크하기${many}`, onClick: () => setChecks(targets, !allChecked) },
                         { label: '원문 열기', onClick: () => window.open(entry.url) },
                         ...(state.records[entry.id] ? [{ label: '받은 글 열기', onClick: () => void call('openPost', entry.id) }] : []),
-                        ...(!isScraps ? [{ label: targets.length > 1 ? `고른 ${targets.length}개 목록에서 빼기` : '목록에서 빼기', danger: true, onClick: () => void remove(targets) }] : []),
+                        ...(!isScraps ? [{ label: `목록에서 빼기${many}`, danger: true, onClick: () => { selection.clear(); void remove(targets); } }] : []),
                       ]);
                     }}
                   >
                     <td className="check">
-                      <input type="checkbox" aria-label="선택" checked={checked.has(entry.id)} onChange={() => selection.toggle(entry.id)} />
+                      <input type="checkbox" aria-label="다운로드할 글로 체크" checked={checked.has(entry.id)} onChange={() => checks.toggle(entry.id)} />
                     </td>
                     <td className="title" title={title(entry)}>{title(entry)}</td>
                     <td className="channel">{entry.channelName ?? entry.channel}</td>
@@ -375,14 +399,17 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
           {marquee.box && <div className="marquee" style={marquee.box} />}
         </div>
         <div className="action-bar">
-          <Select<string> label="선택" value="" onChange={(value) => {
-            if (value === 'all') selection.selectAll();
-            if (value === 'none') selection.clear();
-            if (value === 'unsaved') selection.commit(new Set(visible.filter((entry) => statusOf(state, entry) !== 'saved').map((entry) => entry.id)));
+          <Select<string> label="체크" value="" onChange={(value) => {
+            if (value === 'all') setChecks(visibleIDs, true);
+            if (value === 'none') setChecks([...checks.now()], false);
+            if (value === 'unsaved') setChecks(visible.filter((entry) => statusOf(state, entry) !== 'saved').map((entry) => entry.id), true);
+            if (value === 'highlighted') setChecks([...selection.now()], true);
           }} options={[
-            { value: '', label: '선택…' }, { value: 'all', label: `모두 선택 (${isMac ? '⌘A' : 'Ctrl+A'})` }, { value: 'none', label: '선택 해제 (Esc)' }, { value: 'unsaved', label: '안 받은 글만 선택' },
+            { value: '', label: '체크…' }, { value: 'all', label: '보이는 글 모두 체크' }, { value: 'unsaved', label: '안 받은 글만 체크' },
+            ...(highlighted.size > 0 ? [{ value: 'highlighted', label: `강조한 글 체크 (${highlighted.size}개, 스페이스 바)` }] : []),
+            { value: 'none', label: '체크 모두 풀기' },
           ]} />
-          {!isScraps && <button onClick={() => void remove([...checked])} disabled={checkedCount === 0} title={isMac ? 'Delete' : 'Delete'}>고른 글 빼기</button>}
+          {!isScraps && <button onClick={() => { const targets = [...selection.now()]; selection.clear(); void remove(targets); }} disabled={highlighted.size === 0} title="강조한 글을 목록에서 뺍니다 (Delete)">강조한 글 빼기</button>}
           <SelectionSummary state={state} entries={list.entries} checked={checked} visible={visibleIDs} isMac={isMac} />
           <span className="spacer" />
           <button className="primary" onClick={() => {

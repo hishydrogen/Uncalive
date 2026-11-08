@@ -50,6 +50,9 @@ export interface JobState {
   log: LogLine[];
   startedAt: number;
   finishedAt?: number;
+  /** 멈춰 있던 시간(밀리초)과 지금 멈춘 때입니다. 평균 속도와 남은 시간에서 뺍니다. */
+  pausedMs: number;
+  pausedSince?: number;
   /** 지금 받는 글과 차례를 기다리는 글의 번호입니다. */
   activeIDs: string[];
   waitingIDs: string[];
@@ -137,6 +140,7 @@ export interface Commands {
   setTheme(theme: 'system' | 'light' | 'dark'): void;
   setNotifications(value: boolean): void;
   acceptTerms(): void;
+  testNotification(): void;
   quit(): void;
   checkNow(): void;
   chooseDestination(): void;
@@ -148,6 +152,8 @@ export interface Commands {
   searchLibrary(query: string): Record<string, string | null>;
   redownloadPosts(ids: string[]): number;
   trashPosts(ids: string[]): Promise<number>;
+  copyFiles(paths: string[]): Promise<number>;
+  exportFiles(paths: string[]): Promise<number>;
 }
 
 export type CommandName = keyof Commands;

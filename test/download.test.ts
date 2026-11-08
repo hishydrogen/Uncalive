@@ -223,15 +223,15 @@ describe('대기열', () => {
   const entry = (id: string): ScrapEntry => ({ id, channel: 'test', url: `https://arca.live/b/test/${id}`, title: `글 ${id}` });
 
   test('받는 중에 더한 글은 출처와 함께 뒤에 붙고 중복은 빠진다', () => {
-    const queue = new DownloadQueue([entry('1'), entry('1'), entry('2')], '스크랩');
+    const queue = new DownloadQueue([entry('1'), entry('1'), entry('2')], 'scrap');
     expect(queue.totalPosts).toBe(2);
     expect(queue.nextBatch()?.entries.map((item) => item.id)).toEqual(['1', '2']);
-    expect(queue.enqueue([entry('2'), entry('3')], '주소 수집')).toBe(1);
+    expect(queue.enqueue([entry('2'), entry('3')], 'link')).toBe(1);
     expect(queue.queuedPosts).toBe(1);
-    expect(queue.nextBatch()).toEqual({ entries: [entry('3')], source: '주소 수집' });
+    expect(queue.nextBatch()).toEqual({ entries: [entry('3')], source: 'link' });
     expect(queue.nextBatch()).toBeUndefined();
     expect(queue.isClosed).toBe(true);
-    expect(queue.enqueue([entry('4')], '스크랩')).toBe(0);
+    expect(queue.enqueue([entry('4')], 'scrap')).toBe(0);
   });
 });
 
@@ -396,16 +396,16 @@ describe('전체 흐름', () => {
 
   test('출처별 폴더에 저장하고, 양쪽 목록에 있는 글은 처음 폴더에만 둔다', async () => {
     const root = temporaryDirectory();
-    await engine(new FakePageSource(site())).run({ ...onePage(root), source: '주소 수집', skipCompleted: false });
-    expect(exists(root, `주소 수집/${folder}/01.jpg`)).toBe(true);
+    await engine(new FakePageSource(site())).run({ ...onePage(root), source: 'link', skipCompleted: false });
+    expect(exists(root, `Links/${folder}/01.jpg`)).toBe(true);
     const before = stub.requests.length;
-    const summary = await engine(new FakePageSource(site())).run({ ...onePage(root), source: '스크랩', skipCompleted: false });
+    const summary = await engine(new FakePageSource(site())).run({ ...onePage(root), source: 'scrap', skipCompleted: false });
     expect(summary.mediaReused).toBeGreaterThan(0);
     expect(stub.requests).toHaveLength(before);
-    expect(exists(root, '스크랩')).toBe(false);
+    expect(exists(root, 'Scraps')).toBe(false);
     const posts = await loadLibrary(root);
     expect(posts).toHaveLength(2);
-    expect(posts.every((post) => post.source === '주소 수집')).toBe(true);
+    expect(posts.every((post) => post.source === 'link')).toBe(true);
   });
 
   test('지운 폴더와 파일을 기록에서 빼고, 다시 받으면 같은 자리에 복구한다', async () => {

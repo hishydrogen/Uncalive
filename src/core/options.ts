@@ -1,14 +1,18 @@
 import type { Quality } from './models';
 
-/** 글을 어느 목록에서 받았는지 나타냅니다. 보관함 안의 폴더 이름이기도 합니다. */
-export type ArchiveSource = '스크랩' | '주소 수집';
-export const archiveSources: ArchiveSource[] = ['스크랩', '주소 수집'];
-/** 화면에 보이는 이름입니다. '주소 수집'은 디스크의 폴더 이름으로만 남기고 화면에서는 '링크'라고 부릅니다. */
-export const sourceLabels: Record<ArchiveSource, string> = { '스크랩': '스크랩', '주소 수집': '링크' };
+/** 글을 어느 목록에서 받았는지 나타냅니다. */
+export type ArchiveSource = 'scrap' | 'link';
+export const archiveSources: ArchiveSource[] = ['scrap', 'link'];
+/** 보관함 안의 폴더 이름입니다. */
+export const sourceFolders: Record<ArchiveSource, string> = { scrap: 'Scraps', link: 'Links' };
+/** 화면에 보이는 이름입니다. */
+export const sourceLabels: Record<ArchiveSource, string> = { scrap: '스크랩', link: '링크' };
+/** 2.0.0 이전에 쓰던 한글 폴더 이름입니다. 읽을 때만 알아보고, 시작할 때 영문 폴더로 옮깁니다. */
+export const legacySourceFolders: Record<ArchiveSource, string> = { scrap: '스크랩', link: '주소 수집' };
 
 /** 저장된 폴더 경로로 출처를 판단합니다. 구분이 없던 시절의 글은 `undefined`입니다. */
 export function sourceOfFolder(folder: string): ArchiveSource | undefined {
-  return archiveSources.find((source) => folder.startsWith(source + '/'));
+  return archiveSources.find((source) => folder.startsWith(sourceFolders[source] + '/') || folder.startsWith(legacySourceFolders[source] + '/'));
 }
 
 /** 채널이나 검색 결과 같은 목록을 어디까지 읽을지 정합니다. */

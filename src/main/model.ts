@@ -1,4 +1,7 @@
-import { app, dialog, nativeTheme, Notification, powerSaveBlocker, shell, type BrowserWindow } from 'electron';
+import { app, clipboard, ClipboardItem, dialog, nativeImage, nativeTheme, Notification, powerSaveBlocker, shell, type BrowserWindow } from 'electron';
+import { execFile } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
 import { promises as fs, existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,6 +12,7 @@ import { csvData, loadLibrary, matches, snippet, type ArchivedPost } from '../co
 import { CancellationError, entryDate, errorMessage, UncaliveError, type ScrapEntry } from '../core/models';
 import { sanitize } from '../core/naming';
 import { chooseAccountFolder } from '../core/accounts';
+import { migrateGuestFolder, migrateLibraryFolders } from '../core/folders';
 import { mergeOptions, type ArchiveSource, type DownloadOptions, type ListScope } from '../core/options';
 import { parseTargets } from '../core/parser';
 import { DownloadQueue } from '../core/queue';
@@ -20,7 +24,8 @@ import { BrowserController } from './browser';
 import { log } from './log';
 import { Settings } from './settings';
 
-const noAccountFolder = '로그인 안 함';
+/** 로그인하지 않았을 때 쓰는 보관함 폴더 이름입니다. */
+const noAccountFolder = 'Guest';
 /** 처음 실행할 때 보여 주는 안내의 판입니다. 내용을 바꾸면 올려서 한 번 더 동의를 받습니다. */
 export const termsVersion = 1;
 export const imageExtensions = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'heic', 'heif', 'tiff']);
@@ -49,7 +54,26 @@ class EntryList {
 
 /** 다운로드 한 회차의 진행 상태입니다. */
 class DownloadJob {
-  status: JobState['status'] = 'running';
+  private currentStatus: JobState['status'] = 'running';
+  /** 멈춰 있던 시간입니다. 평균 속도와 남은 시간을 셀 때 뺍니다. */
+  private pausedTotal = 0;
+  private pausedSince?: number;
+
+  get status(): JobState['status'] {
+    return this.currentStatus;
+  }
+
+  /** 일시정지나 보안 확인 대기로 멈춘 시간을 따로 셉니다. */
+  set status(value: JobState['status']) {
+    const halted = (status: JobState['status']) => status === 'paused' || status === 'waitingForChallenge';
+    const now = Date.now();
+    if (halted(value) && !halted(this.currentStatus)) this.pausedSince = now;
+    if (!halted(value) && halted(this.currentStatus) && this.pausedSince !== undefined) {
+      this.pausedTotal += now - this.pausedSince;
+      this.pausedSince = undefined;
+    }
+    this.currentStatus = value;
+  }
   failure?: string;
   finishedPosts = 0;
   currentTitle = '';
@@ -149,7 +173,7 @@ class DownloadJob {
       queuedPosts: this.queue.queuedPosts, currentTitle: this.currentTitle, savedFiles: this.savedFiles,
       failedFiles: this.failedFiles, failedPosts: this.failedPosts, incompletePosts: this.incompletePosts,
       savedBytes: this.savedBytes, activeFiles: [...this.activeFiles.values()].sort((a, b) => a.id.localeCompare(b.id)),
-      log: this.log, startedAt: this.startedAt, finishedAt: this.finishedAt,
+      log: this.log, startedAt: this.startedAt, finishedAt: this.finishedAt, pausedMs: this.pausedTotal, pausedSince: this.pausedSince,
       activeIDs: this.isActive ? [...this.activeIDs] : [], waitingIDs: this.isActive ? [...this.waitingIDs].filter((id) => !this.activeIDs.has(id)) : [],
     };
   }
@@ -295,6 +319,12 @@ export class AppModel {
     void this.settings.flush();
     this.changed();
     void this.start();
+    // 처음 알림을 보내면 맥이 알림 권한을 묻습니다. 다운로드 도중이 아니라 시작할 때 묻도록 여기서 한 번 보냅니다.
+    this.testNotification();
+  }
+
+  testNotification(): void {
+    this.notifyUser('알림이 켜졌습니다', '다운로드를 마치거나 확인이 필요할 때 이렇게 알려 드립니다. 설정에서 끌 수 있습니다.', 'settings', true);
   }
 
   private started = false;
@@ -302,6 +332,7 @@ export class AppModel {
   async start(): Promise<void> {
     if (this.started || !this.termsAccepted) return;
     this.started = true;
+    this.migrateFolders();
     this.reloadRecords();
     this.scheduleAutoCheck();
     if (await this.browser.hasSession()) {
@@ -566,7 +597,7 @@ export class AppModel {
       app.setBadgeCount(this.newScrapCount);
     }
     this.notify(added.length);
-    if (this.autoDownloadNew) this.startDownloadEntries(added, '스크랩');
+    if (this.autoDownloadNew) this.startDownloadEntries(added, 'scrap');
   }
 
   /** 알림에는 개수만 넣고 글 제목은 넣지 않습니다. */
@@ -744,7 +775,7 @@ export class AppModel {
     const list = this.list(kind);
     const selected = list.entries.filter((entry) => list.checked.has(entry.id));
     const wasRunning = this.job?.isActive === true;
-    this.startDownloadEntries(selected, kind === 'scraps' ? '스크랩' : '주소 수집');
+    this.startDownloadEntries(selected, kind === 'scraps' ? 'scrap' : 'link');
     // 대기열에 넣은 글은 선택을 풀어 들어갔음을 알립니다.
     if (wasRunning) {
       selected.forEach((entry) => list.checked.delete(entry.id));
@@ -920,6 +951,7 @@ export class AppModel {
   private libraryDidChange(): void {
     // 다른 보관함의 다운로드 기록(글 제목 등)이 보이지 않게 끝난 기록은 지웁니다.
     this.clearJob();
+    this.migrateFolders();
     this.records = {};
     this.library = [];
     void this.loadCollection();
@@ -928,6 +960,18 @@ export class AppModel {
     this.reloadRecords();
     this.reloadLibrary();
     this.changed('records', 'library');
+  }
+
+  /** 예전 한글 폴더 이름(로그인 안 함, 스크랩, 주소 수집)을 영문으로 옮깁니다. 받는 중에는 하지 않습니다. */
+  private migrateFolders(): void {
+    if (this.job?.isActive) return;
+    try {
+      if (migrateGuestFolder(this.options.destination, noAccountFolder)) log('보관함 폴더 이름을 Guest로 옮김');
+      const moved = migrateLibraryFolders(this.libraryRoot);
+      if (moved > 0) log(`글 폴더 ${moved}개를 영문 폴더로 옮김`);
+    } catch (error) {
+      log(`폴더 이름 옮기기 실패: ${errorMessage(error)}`);
+    }
   }
 
   /** 디스크의 현재 상태를 다시 읽습니다. */
@@ -973,6 +1017,65 @@ export class AppModel {
     });
   }
 
+  /** 갤러리에서 고른 파일의 실제 경로입니다. 보관함 밖을 가리키는 경로는 버립니다. */
+  private libraryFiles(relatives: string[]): string[] {
+    return relatives.map((relative) => this.resolveLibraryPath(relative)).filter((file): file is string => !!file && existsSync(file));
+  }
+
+  /**
+   * 고른 파일을 클립보드에 복사합니다. 사진 하나는 그림으로 복사해 다른 앱에 바로 붙여 넣을 수 있고,
+   * 여럿이거나 동영상이면 파일로 복사해 Finder나 탐색기에 붙여 넣을 수 있습니다. 복사한 개수를 돌려줍니다.
+   */
+  async copyFiles(relatives: string[]): Promise<number> {
+    const files = this.libraryFiles(relatives);
+    if (files.length === 0) return 0;
+    if (files.length === 1 && imageExtensions.has(extensionOf(files[0]))) {
+      const image = nativeImage.createFromPath(files[0]);
+      if (!image.isEmpty()) {
+        await clipboard.write([new ClipboardItem({ 'image/png': new Blob([new Uint8Array(image.toPNG())], { type: 'image/png' }) })]);
+        return 1;
+      }
+    }
+    const raw = (format: string) => `electron application/osclipboard;format="${format}"`;
+    if (process.platform === 'darwin') {
+      const items = files.map((file) => `<string>${file.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</string>`).join('');
+      const plist = `<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><array>${items}</array></plist>`;
+      await clipboard.write([new ClipboardItem({ [raw('NSFilenamesPboardType')]: plist, 'text/plain': files.join('\n') })]);
+    } else if (process.platform === 'win32') {
+      // Electron은 Windows의 파일 목록 형식을 직접 쓰지 못하므로 PowerShell로 복사합니다.
+      const list = files.map((file) => `'${file.replaceAll("'", "''")}'`).join(',');
+      await promisify(execFile)('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Set-Clipboard -LiteralPath ${list}`]);
+    } else {
+      const uris = files.map((file) => pathToFileURL(file).toString());
+      await clipboard.write([new ClipboardItem({ 'text/uri-list': uris.join('\r\n'), [raw('x-special/gnome-copied-files')]: ['copy', ...uris].join('\n'), 'text/plain': files.join('\n') })]);
+    }
+    return files.length;
+  }
+
+  /** 고른 파일을 다른 폴더로 복사합니다. 글이 달라도 이름이 겹치지 않게 글 제목을 앞에 붙이고, 있는 파일은 덮어쓰지 않습니다. */
+  async exportFiles(relatives: string[]): Promise<number> {
+    const files = this.libraryFiles(relatives);
+    if (files.length === 0) return 0;
+    const result = await dialog.showOpenDialog(this.window!, { properties: ['openDirectory', 'createDirectory'], buttonLabel: '여기로 내보내기', title: `파일 ${files.length}개 내보내기` });
+    if (result.canceled || result.filePaths.length === 0) return 0;
+    const target = result.filePaths[0];
+    const root = path.resolve(this.libraryRoot);
+    let copied = 0;
+    for (const file of files) {
+      const relative = path.relative(root, file).split(path.sep).join('/');
+      const post = this.library.find((item) => relative.startsWith(item.record.folder + '/'));
+      const stem = post ? `${sanitize(post.record.title, 40)} - ` : '';
+      const extension = path.extname(file);
+      const base = stem + path.basename(file, extension);
+      let name = base + extension;
+      for (let counter = 2; existsSync(path.join(target, name)); counter += 1) name = `${base} (${counter})${extension}`;
+      await fs.copyFile(file, path.join(target, name));
+      copied += 1;
+    }
+    void shell.openPath(target);
+    return copied;
+  }
+
   /** 보관함에서 고른 글을 다시 받습니다. 받은 파일은 그대로 쓰고 빠진 파일만 받습니다. */
   redownloadPosts(ids: string[]): number {
     const wanted = new Set(ids);
@@ -985,7 +1088,7 @@ export class AppModel {
         url: record.url ?? `https://arca.live/b/${post.channel}/${record.id}`,
         author: post.author, createdAt: post.createdAt, category: post.category,
       };
-      const source = post.source ?? '스크랩';
+      const source = post.source ?? 'scrap';
       groups.set(source, [...(groups.get(source) ?? []), entry]);
     }
     let count = 0;
@@ -998,13 +1101,15 @@ export class AppModel {
 
   /**
    * 보관함에서 고른 글을 운영체제 휴지통으로 옮깁니다. 휴지통에서 되살릴 수 있습니다.
-   * 받는 중인 글은 건드리지 않습니다. 옮긴 글 수를 돌려줍니다.
+   * 받은 기록과 검색 색인은 지우지 않습니다. 보관함은 실제로 있는 폴더만 보여 주므로 옮긴 글은 사라지고,
+   * 휴지통에서 되돌려 놓으면 앱으로 돌아왔을 때 그대로 다시 나타납니다. 받는 중인 글은 건드리지 않습니다.
    */
   async trashPosts(ids: string[]): Promise<number> {
     const busy = new Set([...(this.job?.isActive ? this.job.activeIDs : []), ...(this.job?.isActive ? this.job.waitingIDs : [])]);
     const root = this.libraryRoot;
     const store = await ResumeStore.open(root);
     let moved = 0;
+    // 기록은 그대로 둡니다(되돌려 놓으면 다시 보이게).
     for (const id of ids) {
       if (busy.has(id)) continue;
       const record = store.record(id);
@@ -1016,11 +1121,8 @@ export class AppModel {
         log(`휴지통으로 옮기지 못함: ${errorMessage(error)}`);
         continue;
       }
-      store.remove(id);
-      await fs.rm(path.join(root, '.uncalive', 'text', `${id}.txt`), { force: true });
       moved += 1;
     }
-    if (moved > 0) await store.save();
     this.reloadRecords();
     this.reloadLibrary();
     return moved;

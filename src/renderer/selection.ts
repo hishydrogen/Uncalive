@@ -239,6 +239,7 @@ export function useCollectionKeys(selection: Selection, columns: () => number, i
   onOpen?: (ids: string[]) => void;
   onDelete?: (ids: string[]) => void;
   onSpace?: (id: string) => void;
+  onCopy?: (ids: string[]) => void;
 }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -252,6 +253,9 @@ export function useCollectionKeys(selection: Selection, columns: () => number, i
       if (command && key.toLowerCase() === 'a') {
         event.preventDefault();
         selection.selectAll();
+      } else if (command && key.toLowerCase() === 'c' && picked.length > 0 && actions.onCopy) {
+        event.preventDefault();
+        actions.onCopy(picked);
       } else if (key === 'Escape') {
         selection.clear();
       } else if (key === 'ArrowLeft' || key === 'ArrowRight') {
@@ -273,4 +277,45 @@ export function useCollectionKeys(selection: Selection, columns: () => number, i
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+}
+
+/**
+ * 다운로드할 글의 체크입니다. 강조 선택(useSelection)과 따로 두어, 다른 곳을 잘못 눌러도 체크가 풀리지 않습니다.
+ * 체크 상자, 스페이스 바, 머리글 체크 상자, '체크…' 메뉴로만 바뀝니다. 화면에서 먼저 바꾸고 메인 프로세스에 알립니다.
+ */
+export function useChecks(kind: ListKind, serverChecked: string[]) {
+  const server = useMemo(() => new Set(serverChecked), [serverChecked]);
+  const [local, setLocal] = useState<Set<string> | null>(null);
+  const settle = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const checked = local ?? server;
+  const current = useRef(checked);
+  const pending = useRef(false);
+  if (!pending.current) current.current = checked;
+
+  useEffect(() => {
+    if (local && local.size === server.size && [...local].every((id) => server.has(id))) setLocal(null);
+  }, [server, local]);
+
+  const commit = useCallback((next: Set<string>) => {
+    current.current = next;
+    pending.current = true;
+    queueMicrotask(() => { pending.current = false; });
+    setLocal(next);
+    void call('setSelection', kind, [...next]);
+    clearTimeout(settle.current);
+    settle.current = setTimeout(() => setLocal(null), 1200);
+  }, [kind]);
+
+  /** 여러 글을 한꺼번에 체크하거나 풉니다. 바꾸기 전의 체크를 돌려주므로 되돌리기에 씁니다. */
+  const set = useCallback((ids: Iterable<string>, value: boolean): Set<string> => {
+    const before = new Set(current.current);
+    const next = new Set(before);
+    for (const id of ids) { if (value) next.add(id); else next.delete(id); }
+    commit(next);
+    return before;
+  }, [commit]);
+
+  const toggle = useCallback((id: string) => set([id], !current.current.has(id)), [set]);
+  const now = useCallback(() => current.current, []);
+  return { checked, now, commit, set, toggle };
 }

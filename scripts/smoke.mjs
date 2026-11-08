@@ -55,36 +55,48 @@ try {
   await page.click('.dialog button.primary');
   await page.waitForSelector('td.title:has-text("글 1213")');
   check((await page.locator('tbody tr').count()) === 5, '주소로 더한 글이 목록에 보인다');
-  check(await sees('.selection-summary strong:text-is("5개 선택")'), '새로 더한 글은 골라져 있다');
+  const checkedCount = (count) => sees(count === 0 ? '.selection-summary.muted' : `.selection-summary strong:text-is("${count}개 체크")`);
+  const lit = () => page.locator('tbody tr.highlighted').count();
+  check(await checkedCount(5), '새로 더한 링크는 체크되어 있다');
   await snap('3-collection');
 
-  // Finder처럼 고르기: 누르기, ⌘(Ctrl) 누르기, Shift 누르기, 모두 선택, 해제, 끌어 고르기, 방향키
+  // 강조(보라색)는 Finder처럼 고르고, 체크(다운로드할 글)는 따로 둡니다.
   const command = process.platform === 'darwin' ? 'Meta' : 'Control';
   const row = (n) => page.locator('tbody tr').nth(n).locator('td.title');
-  const selected = (count) => sees(count === 0 ? '.selection-summary.muted' : `.selection-summary strong:text-is("${count}개 선택")`);
   await row(0).click();
-  check(await selected(1), '줄을 누르면 그 줄만 고른다');
+  check((await lit()) === 1 && await checkedCount(5), '줄을 누르면 그 줄만 강조하고 체크는 그대로다');
   await row(2).click({ modifiers: [command] });
-  check(await selected(2), `${command}를 누른 채 누르면 더한다`);
+  check((await lit()) === 2, `${command}를 누른 채 누르면 강조를 더한다`);
   await row(4).click({ modifiers: ['Shift'] });
-  check(await selected(4), 'Shift를 누른 채 누르면 범위를 고른다');
+  check((await lit()) === 4, 'Shift를 누른 채 누르면 범위를 강조한다');
   await page.keyboard.press('Escape');
-  check(await selected(0), 'Esc로 선택을 푼다');
+  check((await lit()) === 0 && await checkedCount(5), 'Esc는 강조만 풀고 체크는 남긴다');
+  const wrapBox = await page.locator('.table-wrap').boundingBox();
+  await page.mouse.click(wrapBox.x + wrapBox.width / 2, wrapBox.y + wrapBox.height - 20);
+  check(await checkedCount(5), '빈 곳을 눌러도 체크는 풀리지 않는다');
+  await page.uncheck('th.check input');
+  check(await checkedCount(0), '머리글 체크 상자로 체크를 모두 푼다');
+  await page.click('.toast button:has-text("실행 취소")');
+  check(await checkedCount(5), '체크를 모두 푼 것을 되돌린다');
   await page.keyboard.press(`${command}+A`);
-  check(await selected(5), `${command}+A로 모두 고른다`);
+  check((await lit()) === 5, `${command}+A로 모두 강조한다`);
   const first = await row(1).boundingBox();
   const last = await row(3).boundingBox();
   await page.mouse.move(first.x + 40, first.y + first.height / 2);
   await page.mouse.down();
   await page.mouse.move(last.x + 80, last.y + last.height / 2, { steps: 8 });
   await page.mouse.up();
-  check(await selected(3), '끌어서 상자로 고른다');
+  check((await lit()) === 3, '끌어서 상자로 강조한다');
+  await page.keyboard.press(' ');
+  check(await checkedCount(2), '스페이스 바로 강조한 글의 체크를 푼다');
+  await page.keyboard.press(' ');
+  check(await checkedCount(5), '스페이스 바를 다시 누르면 체크한다');
   await page.keyboard.press('ArrowDown');
-  check(await selected(1) && (await page.locator('tr.cursor td.title').innerText()) === '글 1213', '끌기를 마친 줄에서 방향키가 이어진다');
+  check((await lit()) === 1 && (await page.locator('tr.cursor td.title').innerText()) === '글 1213', '끌기를 마친 줄에서 방향키가 이어진다');
   await row(0).click();
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Shift+ArrowDown');
-  check(await selected(2), '방향키로 옮기고 Shift로 넓힌다');
+  check((await lit()) === 2, '방향키로 옮기고 Shift로 넓힌다');
 
   const handle = page.locator('th.author .col-resize');
   const before = await page.locator('th.author').evaluate((th) => th.offsetWidth);
@@ -95,11 +107,11 @@ try {
   await page.mouse.up();
   const after = await page.locator('th.author').evaluate((th) => th.offsetWidth);
   check(Math.abs(after - before - 60) <= 2, `열 경계를 끌어 너비를 바꾼다 (${before} → ${after})`);
-  check(await selected(2), '열 너비를 바꿔도 선택은 그대로다');
+  check((await lit()) === 2, '열 너비를 바꿔도 강조는 그대로다');
 
   await page.keyboard.press('Delete');
   await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 3);
-  check(await sees('.toast:has-text("2개를 목록에서 뺐습니다")'), 'Delete로 고른 글을 빼고 알린다');
+  check(await sees('.toast:has-text("2개를 목록에서 뺐습니다")'), 'Delete로 강조한 글을 빼고 알린다');
   await page.click('.toast button:has-text("실행 취소")');
   await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 5);
   check(true, '실행 취소로 되돌린다');

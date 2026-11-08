@@ -55,10 +55,13 @@ function JobView({ state, job }: { state: AppState; job: JobState }) {
     failed: job.failure ?? '',
   }[job.status];
 
-  const elapsed = ((job.finishedAt ?? now) - job.startedAt) / 1000;
+  // 멈춰 있던 시간은 빼고, 멈춘 동안에는 그때 값에서 멈춰 둡니다.
+  const elapsed = Math.max(0, ((job.finishedAt ?? job.pausedSince ?? now) - job.startedAt - job.pausedMs) / 1000);
   const speed = elapsed > 0 ? job.savedBytes / elapsed : 0;
   let remaining = '-';
-  if (isActive(job)) {
+  if (job.status === 'paused' || job.status === 'waitingForChallenge') {
+    remaining = '멈춤';
+  } else if (isActive(job)) {
     remaining = job.finishedPosts > 0 && job.finishedPosts < job.totalPosts
       ? '약 ' + formatDuration((elapsed / job.finishedPosts) * (job.totalPosts - job.finishedPosts))
       : '계산 중';
