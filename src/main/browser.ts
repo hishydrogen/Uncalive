@@ -1,51 +1,9 @@
-import { BrowserWindow, session as electronSession, type Session } from 'electron';
+import { app, BrowserWindow, session as electronSession, type Session } from 'electron';
 import { CancellationError, UncaliveError } from '../core/models';
 import type { LoadedPage, PageKind, PageSource } from '../core/engine';
 import { log } from './log';
 
 const sessionCookie = 'arca.at';
-
-/** 로그인 페이지가 캡챠 단계를 두 번 초기화해 제출 버튼이 숨겨진 채 멈추는 사이트 버그를 보완합니다. 맥판과 같은 스크립트입니다. */
-const loginFixupScript = `
-(function () {
-  if (typeof turnstile === 'undefined') return;
-  if (!turnstile.__uncalivePatched && typeof turnstile.render === 'function') {
-    turnstile.__uncalivePatched = true;
-    const origRender = turnstile.render.bind(turnstile);
-    turnstile.render = function (container, options) {
-      const el = typeof container === 'string' ? document.querySelector(container) : container;
-      if (el && el.childElementCount > 0) {
-        try { turnstile.remove(el); } catch (e) { el.innerHTML = ''; }
-      }
-      return origRender(container, options);
-    };
-  }
-  const stage = document.querySelector('#stage-3.active');
-  if (!stage) {
-    window.__uncaliveSubmittedToken = null;
-    return;
-  }
-  let token = null;
-  try {
-    if (turnstile.isExpired && turnstile.isExpired()) {
-      turnstile.reset();
-      return;
-    }
-    token = turnstile.getResponse();
-  } catch (e) {}
-  if (!token) return;
-  const button = stage.querySelector('button[data-submitstage]');
-  if (!button) return;
-  if (getComputedStyle(button).display === 'none') {
-    button.style.display = '';
-    if (window.__uncaliveSubmittedToken !== token) {
-      window.__uncaliveSubmittedToken = token;
-      button.click();
-    }
-  }
-})();
-true
-`;
 
 function stateScript(selector: string): string {
   return `(function () {
@@ -96,14 +54,24 @@ export class BrowserController implements PageSource {
 
   constructor() {
     this.session = electronSession.fromPartition('persist:uncalive');
-    // 앱 이름과 Electron 버전을 빼서 일반 Chrome과 같은 형식으로 둡니다. 사이트가 낯선 브라우저로 보고 기능을 막지 않게 합니다.
-    const agent = this.session.getUserAgent().replace(/\s(Electron|uncalive|언카라이브)\/\S+/gi, '');
-    this.session.setUserAgent(agent);
+    this.session.setUserAgent(BrowserController.userAgent(this.session.getUserAgent()));
     this.session.webRequest.onBeforeRequest((details, callback) => {
       callback({ cancel: this.privacy && isBlocked(details.url) });
     });
     // 아카라이브가 요청하는 알림, 위치 같은 권한은 주지 않습니다.
     this.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+  }
+
+  /**
+   * Electron 기본 형식 그대로 앱과 Electron을 밝힙니다. 앱 이름은 HTTP 헤더에 쓸 수 있게 영문으로 둡니다.
+   * Electron 표시를 빼고 Chrome인 척하면 다른 브라우저 정보와 어긋나 Cloudflare 확인(Turnstile)이 끝나지 않습니다.
+   */
+  static userAgent(base: string): string {
+    // Electron이 'Chrome/' 앞에 넣는 앱 이름(개발본은 UncaliveDev, 설치본은 한글 이름)과 뒤쪽의 Electron 표시를 지운 뒤 정해진 자리에 다시 넣습니다.
+    const plain = base
+      .replace(/\(KHTML, like Gecko\) .*?Chrome\//, '(KHTML, like Gecko) Chrome/')
+      .replace(/\sElectron\/\S+/g, '');
+    return plain.replace(/ Safari\//, ` Uncalive/${app.getVersion()} Electron/${process.versions.electron} Safari/`);
   }
 
   private ensureWindow(): BrowserWindow {
@@ -253,7 +221,7 @@ export class BrowserController implements PageSource {
         if (!this.waitingForLogin || busy) return;
         busy = true;
         try {
-          await this.evaluate(loginFixupScript);
+          // 로그인 페이지에는 손대지 않습니다. Turnstile 함수를 바꾸면 Cloudflare가 변조로 보고 확인을 끝내지 않습니다.
           const current = await this.sessionValue();
           if (current !== undefined && current !== previous) this.finishLogin();
         } finally {
