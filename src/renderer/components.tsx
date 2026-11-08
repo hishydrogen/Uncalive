@@ -218,14 +218,15 @@ export function useVisible<T extends Element>(): [React.RefObject<T | null>, boo
   return [ref, visible];
 }
 
-export function Dialog(props: { title: string; children: ReactNode; onClose: () => void; width?: number }) {
+export function Dialog(props: { title: string; children: ReactNode; onClose: () => void; width?: number; dismissable?: boolean }) {
+  const dismissable = props.dismissable ?? true;
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') props.onClose(); };
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && dismissable) props.onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
   return createPortal(
-    <div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) props.onClose(); }}>
+    <div className="dialog-backdrop" onMouseDown={(event) => { if (dismissable && event.target === event.currentTarget) props.onClose(); }}>
       <div className="dialog" role="dialog" aria-modal aria-label={props.title} style={{ width: props.width ?? 540 }}>
         <h2>{props.title}</h2>
         {props.children}

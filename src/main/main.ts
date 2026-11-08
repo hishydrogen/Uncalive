@@ -25,7 +25,7 @@ protocol.registerSchemesAsPrivileged([
 const commands = new Set<CommandName>([
   'setSection', 'signIn', 'signOut', 'refreshScraps', 'stopLoading', 'addTargets', 'clearCollection', 'removeFromCollection',
   'removeCheckedFromCollection', 'removeFromCollectionMany', 'undoRemoveFromCollection', 'setSelection', 'setChecked', 'checkUnsaved', 'startDownload', 'togglePause', 'cancelDownload', 'clearJob', 'exportCSV',
-  'setOptions', 'setUseAccountFolder', 'setAutoCheckHours', 'setAutoDownloadNew', 'setTheme', 'setNotifications', 'checkNow', 'chooseDestination', 'openPost',
+  'setOptions', 'setUseAccountFolder', 'setAutoCheckHours', 'setAutoDownloadNew', 'setTheme', 'setNotifications', 'acceptTerms', 'quit', 'checkNow', 'chooseDestination', 'openPost',
   'revealPost', 'revealFile', 'openLibraryFolder', 'reloadLibrary', 'searchLibrary',
 ]);
 
@@ -203,6 +203,7 @@ function registerIPC(): void {
     if (event.sender !== mainWindow?.webContents) throw new Error('허용되지 않은 요청입니다.');
     if (!commands.has(name)) throw new Error(`알 수 없는 명령입니다: ${name}`);
     if (name === 'checkNow') return model.checkForNewScraps();
+    if (name === 'quit') return app.quit();
     const method = (model as unknown as Record<string, (...values: unknown[]) => unknown>)[name];
     return method.apply(model, Array.isArray(args) ? args : []);
   });
@@ -260,6 +261,7 @@ if (!app.requestSingleInstanceLock()) {
     registerIPC();
     buildMenu();
     mainWindow = createWindow();
+    // 처음 실행 안내에 동의한 뒤에만 시작합니다. 동의하면 model.acceptTerms가 시작합니다.
     await model.start();
   });
 }

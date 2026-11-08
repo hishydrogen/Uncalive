@@ -7,6 +7,7 @@ import { EntryListView, initialFilters, type Filters } from './views/EntryListVi
 import { GalleryView } from './views/GalleryView';
 import { LibraryView } from './views/LibraryView';
 import { SettingsView } from './views/SettingsView';
+import { TermsDialog } from './views/TermsDialog';
 import type { AppState, Section } from '../shared/types';
 
 export function App() {
@@ -31,6 +32,7 @@ export function App() {
         {state.section === 'settings' && <SettingsView state={state} />}
       </main>
       <ToastHost />
+      {!state.termsAccepted && <TermsDialog />}
     </div>
   );
 }

@@ -103,6 +103,9 @@ mkdirSync(path.join(root, '.uncalive'), { recursive: true });
 writeFileSync(path.join(root, '.uncalive', 'state.json'), JSON.stringify(state, null, 2));
 writeFileSync(path.join(root, '.uncalive', 'collection.json'), JSON.stringify(collection));
 
+// 처음 실행 안내는 이미 동의한 것으로 둡니다.
+mkdirSync(path.join(sandbox, 'profile'), { recursive: true });
+writeFileSync(path.join(sandbox, 'profile', 'settings.json'), JSON.stringify({ acceptedTermsVersion: 1 }));
 const app = await electron.launch({
   args: ['.'],
   env: { ...process.env, UNCALIVE_PROFILE_DIR: path.join(sandbox, 'profile'), UNCALIVE_DEFAULT_FOLDER: path.join(sandbox, 'library') },

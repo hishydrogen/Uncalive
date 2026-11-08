@@ -21,6 +21,8 @@ import { log } from './log';
 import { Settings } from './settings';
 
 const noAccountFolder = '로그인 안 함';
+/** 처음 실행할 때 보여 주는 안내의 판입니다. 내용을 바꾸면 올려서 한 번 더 동의를 받습니다. */
+export const termsVersion = 1;
 export const imageExtensions = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'heic', 'heif', 'tiff']);
 export const videoExtensions = new Set(['mp4', 'webm', 'mov', 'mpeg', 'mkv', 'avi', 'ogv']);
 const logLimit = 1000;
@@ -247,7 +249,7 @@ export class AppModel {
         platform: process.platform, version: app.getVersion(), material: this.material, section: this.section, login: this.login,
         username: this.username, loginID: this.loginID, useAccountFolder: this.useAccountFolder, options: this.options,
         libraryRoot: this.libraryRoot, isBusy: this.isBusy, newScrapCount: this.newScrapCount,
-        lastCheck: this.lastCheck, autoCheckHours: this.autoCheckHours, autoDownloadNew: this.autoDownloadNew, theme: this.theme, notifications: this.notifications,
+        lastCheck: this.lastCheck, autoCheckHours: this.autoCheckHours, autoDownloadNew: this.autoDownloadNew, theme: this.theme, notifications: this.notifications, termsAccepted: this.termsAccepted,
         isLoadingLibrary: this.isLoadingLibrary,
       } satisfies Partial<AppState>);
     }
@@ -282,7 +284,23 @@ export class AppModel {
 
   // MARK: - 시작
 
+  /** 처음 실행 안내에 동의했는지입니다. 동의하기 전에는 아카라이브에 접속하지 않습니다. */
+  get termsAccepted(): boolean {
+    return this.settings.get<number>('acceptedTermsVersion') === termsVersion;
+  }
+
+  acceptTerms(): void {
+    this.settings.set('acceptedTermsVersion', termsVersion);
+    void this.settings.flush();
+    this.changed();
+    void this.start();
+  }
+
+  private started = false;
+
   async start(): Promise<void> {
+    if (this.started || !this.termsAccepted) return;
+    this.started = true;
     this.reloadRecords();
     this.scheduleAutoCheck();
     if (await this.browser.hasSession()) {

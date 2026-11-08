@@ -101,6 +101,8 @@ export interface AppState {
   autoDownloadNew: boolean;
   theme: 'system' | 'light' | 'dark';
   notifications: boolean;
+  /** 처음 실행 안내에 동의했는지입니다. */
+  termsAccepted: boolean;
   library: LibraryItem[];
   isLoadingLibrary: boolean;
 }
@@ -132,6 +134,8 @@ export interface Commands {
   setAutoDownloadNew(value: boolean): void;
   setTheme(theme: 'system' | 'light' | 'dark'): void;
   setNotifications(value: boolean): void;
+  acceptTerms(): void;
+  quit(): void;
   checkNow(): void;
   chooseDestination(): void;
   openPost(id: string): void;

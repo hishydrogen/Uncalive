@@ -30,6 +30,14 @@ try {
     await page.screenshot({ path: path.join(shots, `${name}.png`) }).catch((error) => console.log(`캡처 못 함(${name}): ${error.message.split('\n')[0]}`));
   };
 
+  // 처음 실행 안내: 동의하기 전에는 확인을 누를 수 없고, 동의하면 앱이 시작됩니다.
+  await page.waitForSelector('.dialog:has-text("언카라이브를 쓰기 전에")', { timeout: 15000 });
+  check(await page.locator('.dialog button.primary:has-text("확인")').isDisabled(), '처음 실행 안내는 동의하기 전에 확인을 막는다');
+  await snap('0-terms');
+  await page.check('.terms-agree input');
+  await page.click('.dialog button.primary:has-text("확인")');
+  await page.waitForSelector('.dialog', { state: 'detached' });
+  check(true, '동의하면 안내가 닫힌다');
   await page.waitForSelector('text=로그인이 필요합니다', { timeout: 15000 });
   check(true, '로그인 전 안내 화면이 보인다');
   await snap('1-scraps');
