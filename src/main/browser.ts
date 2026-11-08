@@ -70,7 +70,7 @@ export class BrowserController implements PageSource {
     // Electron이 'Chrome/' 앞에 넣는 앱 이름(개발본은 UncaliveDev, 설치본은 한글 이름)과 뒤쪽의 Electron 표시를 지운 뒤 정해진 자리에 다시 넣습니다.
     const plain = base
       .replace(/\(KHTML, like Gecko\) .*?Chrome\//, '(KHTML, like Gecko) Chrome/')
-      .replace(/\sElectron\/\S+/g, '');
+      .replace(/\s(Electron|Uncalive)\/\S+/g, '');
     return plain.replace(/ Safari\//, ` Uncalive/${app.getVersion()} Electron/${process.versions.electron} Safari/`);
   }
 

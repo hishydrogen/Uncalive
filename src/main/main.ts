@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, 
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { CommandName } from '../shared/types';
+import { BrowserController } from './browser';
 import { log } from './log';
 import { importLegacySettings } from './migrate';
 import { AppModel } from './model';
@@ -9,6 +10,9 @@ import { AppModel } from './model';
 const isDev = !app.isPackaged;
 const appName = isDev ? 'Uncalive Dev' : '언카라이브';
 app.setName(appName);
+// Electron은 앱 이름을 브라우저 표시에 넣는데, 한글 이름은 HTTP 헤더에 쓸 수 없습니다.
+// 워커처럼 세션 설정을 따르지 않는 곳도 같은 표시를 쓰도록 기본값을 바꿉니다. 다르면 Cloudflare 확인이 실패합니다.
+app.userAgentFallback = BrowserController.userAgent(app.userAgentFallback);
 // 개발본과 설치본이 로그인 세션, 설정, 보관함을 서로 건드리지 않게 나눕니다. 폴더 이름은 영문으로 둡니다.
 app.setPath('userData', process.env.UNCALIVE_PROFILE_DIR ?? path.join(app.getPath('appData'), isDev ? 'Uncalive Electron Dev' : 'Uncalive'));
 if (process.platform === 'win32') app.setAppUserModelId(isDev ? 'io.github.hishydrogen.uncalive.dev' : 'io.github.hishydrogen.uncalive');
