@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Bookmark, Download, Link2, Plus, RefreshCw, SlidersHorizontal, Square, Trash2, UserCircle2, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Bookmark, CheckCircle2, Circle, Clock, Download, Link2, Loader2, Plus, RefreshCw, SlidersHorizontal, Square, Trash2, UserCircle2, X } from 'lucide-react';
 import { call, formatShortDate, qualityTitles, usePreference } from '../api';
-import { EmptyState, Header, SearchField, Select, showToast, Spinner, useContextMenu } from '../components';
+import { EmptyState, Header, SearchField, Select, showToast, Spinner, useContextMenu, usePresence } from '../components';
 import { modifiersOf, useSelection } from '../selection';
 import type { AppState, ListKind, PostStatus, ScrapEntry } from '../../shared/types';
 import { AddURLsDialog } from './AddURLsDialog';
@@ -64,7 +64,28 @@ export function optionsSummary(state: AppState): string {
   return parts.join(' · ');
 }
 
-const statusLabels: Record<PostStatus, string> = { new: '안 받음', incomplete: '일부만 받음', saved: '받음' };
+type LiveStatus = PostStatus | 'active' | 'waiting';
+
+const statusInfo: Record<LiveStatus, { label: string; detail: string }> = {
+  new: { label: '안 받음', detail: '아직 받지 않은 글입니다.' },
+  incomplete: { label: '일부만 받음', detail: '받지 못했거나 원본 대신 압축본으로 받은 파일이 있습니다. 다시 받으면 그 파일만 이어서 받습니다.' },
+  saved: { label: '받음', detail: '모든 파일을 받았습니다.' },
+  active: { label: '받는 중', detail: '지금 받고 있습니다.' },
+  waiting: { label: '대기 중', detail: '다운로드 대기열에서 차례를 기다리고 있습니다.' },
+};
+
+/** 글 상태를 아이콘으로 보여 줍니다. 마우스를 올리면 뜻을 알려 줍니다. */
+function StatusIcon({ status }: { status: LiveStatus }) {
+  const info = statusInfo[status];
+  const icon = {
+    new: <Circle size={15} />,
+    incomplete: <AlertCircle size={15} />,
+    saved: <CheckCircle2 size={15} />,
+    active: <Loader2 size={15} className="spin" />,
+    waiting: <Clock size={15} />,
+  }[status];
+  return <span className={`status-icon ${status}`} title={`${info.label} · ${info.detail}`} aria-label={info.label}>{icon}</span>;
+}
 
 /** 스크랩과 주소 수집이 함께 쓰는 글 목록 화면입니다. */
 export function EntryListView(props: { state: AppState; kind: ListKind; filters: Filters; onFilters: (filters: Filters) => void }) {
@@ -73,6 +94,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
   const isScraps = kind === 'scraps';
   const [showOptions, setShowOptions] = usePreference('showDownloadOptions', true);
   const [showAdd, setShowAdd] = useState(false);
+  const panel = usePresence(showOptions, 220);
   const menu = useContextMenu();
   const set = (patch: Partial<Filters>) => props.onFilters({ ...filters, ...patch });
 
@@ -104,6 +126,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
   const jobActive = state.job !== undefined && ['running', 'paused', 'waitingForChallenge'].includes(state.job.status);
 
   const isMac = state.platform === 'darwin';
+  const live = useMemo(() => ({ active: new Set(state.job?.activeIDs ?? []), waiting: new Set(state.job?.waitingIDs ?? []) }), [state.job?.activeIDs, state.job?.waitingIDs]);
   const visibleIDs = useMemo(() => visible.map((entry) => entry.id), [visible]);
   const selection = useSelection(kind, visibleIDs, list.checked);
   const checked = selection.selected;
@@ -333,7 +356,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
                     <td className="date">{formatShortDate(entry.createdAt)}</td>
                     <td className="status">
                       <span className="status-cell">
-                      <span className={`status-badge ${status}`} title={statusLabels[status]} aria-label={statusLabels[status]} />
+                      <StatusIcon status={live.active.has(entry.id) ? 'active' : live.waiting.has(entry.id) ? 'waiting' : status} />
                       {!isScraps && (
                         <button className="plain remove" title="목록에서 빼기" aria-label="목록에서 빼기" onClick={() => void remove([entry.id])}><X size={14} /></button>
                       )}
@@ -387,7 +410,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
       </Header>
       <div className="split">
         <section className="split-main">{body}</section>
-        {showOptions && <OptionsPanel state={state} />}
+        {panel.mounted && <OptionsPanel state={state} closing={panel.closing} />}
       </div>
       {showAdd && <AddURLsDialog state={state} onClose={() => setShowAdd(false)} />}
       {menu.element}

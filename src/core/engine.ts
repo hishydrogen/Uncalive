@@ -289,7 +289,7 @@ export class ScrapEngine {
     const post = parsePost(loaded.html, entry.url);
 
     if (post.embeds.length > 0) {
-      onEvent({ type: 'warning', text: `외부 임베드 ${post.embeds.length}개는 파일로 받을 수 없어 링크로 남깁니다: ${post.title}` });
+      onEvent({ type: 'warning', text: `${post.title}: 외부 임베드 ${post.embeds.length}개(YouTube 등)는 내려받을 수 없어 오프라인 페이지에 링크로 남겨 둡니다.` });
     }
 
     let preferred = folderName(post, options);

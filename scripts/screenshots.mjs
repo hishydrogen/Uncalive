@@ -1,5 +1,6 @@
 // README용 화면을 찍습니다. 지어낸 예시 글과 그림만 임시 폴더에 만들어 쓰며, 네트워크는 쓰지 않습니다.
-// 사용법: npm run build && node scripts/screenshots.mjs docs/screenshots
+// 사용법: npm run build && node scripts/screenshots.mjs docs/screenshots [--dark]
+// --dark를 붙이면 다크 모드로 찍고 파일 이름 끝에 -dark를 붙입니다. CI는 운영체제마다 두 가지를 모두 찍어 보관합니다.
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,6 +8,7 @@ import { deflateSync } from 'node:zlib';
 import { _electron as electron } from 'playwright-core';
 
 const out = path.resolve(process.argv[2] ?? 'docs/screenshots');
+const dark = process.argv.includes('--dark');
 mkdirSync(out, { recursive: true });
 const sandbox = mkdtempSync(path.join(os.tmpdir(), 'uncalive-shots-'));
 const root = path.join(sandbox, 'library', '로그인 안 함');
@@ -108,6 +110,8 @@ const app = await electron.launch({
 try {
   const page = await app.firstWindow();
   await page.setViewportSize({ width: 1240, height: 760 });
+  if (dark) await page.emulateMedia({ colorScheme: 'dark' });
+  await page.evaluate(() => document.documentElement.classList.add('capture'));
   // 임시 폴더 경로 대신 기본 보관함 위치로 보여 줍니다.
   const library = path.join(sandbox, 'library');
   const shoot = async (name) => {
@@ -117,7 +121,7 @@ try {
         if (node.textContent.includes(prefix)) node.textContent = node.textContent.replaceAll(prefix, '~/Uncalive');
       }
     }, library);
-    await page.screenshot({ path: path.join(out, name) });
+    await page.screenshot({ path: path.join(out, dark ? name.replace('.png', '-dark.png') : name) });
   };
   await page.waitForSelector('.sidebar');
   await page.click('.nav-item:has-text("주소 수집")');

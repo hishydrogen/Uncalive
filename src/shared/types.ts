@@ -50,6 +50,9 @@ export interface JobState {
   log: LogLine[];
   startedAt: number;
   finishedAt?: number;
+  /** 지금 받는 글과 차례를 기다리는 글의 번호입니다. */
+  activeIDs: string[];
+  waitingIDs: string[];
 }
 
 export interface LibraryMedia {
@@ -96,6 +99,8 @@ export interface AppState {
   lastCheck?: number;
   autoCheckHours: number;
   autoDownloadNew: boolean;
+  theme: 'system' | 'light' | 'dark';
+  notifications: boolean;
   library: LibraryItem[];
   isLoadingLibrary: boolean;
 }
@@ -119,11 +124,14 @@ export interface Commands {
   startDownload(kind: ListKind): void;
   togglePause(): void;
   cancelDownload(): void;
+  clearJob(): void;
   exportCSV(kind: ListKind, ids: string[]): void;
   setOptions(options: DownloadOptions): void;
   setUseAccountFolder(value: boolean): void;
   setAutoCheckHours(hours: number): void;
   setAutoDownloadNew(value: boolean): void;
+  setTheme(theme: 'system' | 'light' | 'dark'): void;
+  setNotifications(value: boolean): void;
   checkNow(): void;
   chooseDestination(): void;
   openPost(id: string): void;

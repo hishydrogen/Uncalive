@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, ArrowDownCircle, CheckCircle2, CornerDownRight, XCircle } from 'lucide-react';
 import { call, formatBytes, formatDuration } from '../api';
-import { EmptyState, Header } from '../components';
+import { EmptyState, Header, showToast } from '../components';
 import type { AppState, JobState } from '../../shared/types';
 
 const isActive = (job: JobState) => job.status === 'running' || job.status === 'paused' || job.status === 'waitingForChallenge';
@@ -38,7 +38,7 @@ function JobView({ state, job }: { state: AppState; job: JobState }) {
 
   const title = {
     running: `${job.finishedPosts} / ${job.totalPosts}개 처리됨` + (job.queuedPosts > 0 ? ` (대기 ${job.queuedPosts}개)` : ''),
-    paused: '일시정지됨',
+    paused: job.activeFiles.length > 0 ? '일시정지하는 중' : '일시정지됨',
     waitingForChallenge: 'Cloudflare 보안 확인 대기 중',
     finished: '다운로드 완료',
     cancelled: '중단됨',
@@ -46,7 +46,9 @@ function JobView({ state, job }: { state: AppState; job: JobState }) {
   }[job.status];
   const detail = {
     running: job.currentTitle,
-    paused: job.currentTitle,
+    paused: job.activeFiles.length > 0
+      ? `새 파일은 받지 않고, 받고 있던 파일 ${job.activeFiles.length}개만 끝까지 받은 뒤 멈춥니다. 바로 멈추려면 중단을 누르세요.`
+      : '계속을 누르면 멈춘 곳부터 이어서 받습니다.',
     waitingForChallenge: '열린 창에서 보안 확인을 완료하면 다운로드가 자동으로 이어집니다.',
     finished: `저장 위치: ${state.libraryRoot}`,
     cancelled: '다시 시작하면 이미 받은 파일은 건너뛰고 나머지를 이어서 받습니다.',
@@ -74,11 +76,17 @@ function JobView({ state, job }: { state: AppState; job: JobState }) {
           </div>
           {isActive(job) ? (
             <div className="row">
-              <button onClick={() => void call('togglePause')} disabled={job.status === 'waitingForChallenge'}>{job.status === 'paused' ? '계속' : '일시정지'}</button>
+              <button onClick={() => {
+                if (job.status === 'running' && job.activeFiles.length > 0) showToast('받고 있던 파일은 끝까지 받은 뒤 멈춥니다');
+                void call('togglePause');
+              }} disabled={job.status === 'waitingForChallenge'}>{job.status === 'paused' ? '계속' : '일시정지'}</button>
               <button className="danger" onClick={() => void call('cancelDownload')}>중단</button>
             </div>
           ) : (
-            <button onClick={() => void call('openLibraryFolder')}>폴더 열기</button>
+            <div className="row">
+              <button onClick={() => void call('clearJob')} title="이 다운로드의 기록을 화면에서 지웁니다. 받은 파일은 그대로입니다.">기록 지우기</button>
+              <button onClick={() => void call('openLibraryFolder')}>폴더 열기</button>
+            </div>
           )}
         </div>
         <progress value={fraction} max={1} />

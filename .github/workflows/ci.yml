@@ -50,10 +50,19 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run --auto-servernum node scripts/smoke.mjs smoke-shots; else node scripts/smoke.mjs smoke-shots; fi
-      - name: 화면 캡처 보관
+      - name: 디자인 검수용 화면 찍기 (예시 데이터, 라이트와 다크)
+        if: always()
+        shell: bash
+        run: |
+          run() { if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run --auto-servernum "$@"; else "$@"; fi; }
+          run node scripts/screenshots.mjs design-shots
+          run node scripts/screenshots.mjs design-shots --dark
+      - name: 화면 보관
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-${{ matrix.os }}
-          path: smoke-shots
+          name: screens-${{ matrix.os }}
+          path: |
+            smoke-shots
+            design-shots
           if-no-files-found: ignore

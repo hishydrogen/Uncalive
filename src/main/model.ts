@@ -1,4 +1,4 @@
-import { app, dialog, Notification, powerSaveBlocker, shell, type BrowserWindow } from 'electron';
+import { app, dialog, nativeTheme, Notification, powerSaveBlocker, shell, type BrowserWindow } from 'electron';
 import { promises as fs, existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -59,13 +59,20 @@ class DownloadJob {
   activeFiles = new Map<string, { id: string; received: number; expected: number }>();
   log: LogLine[] = [];
   readonly startedAt = Date.now();
+  /** 이 다운로드가 쓰는 보관함입니다. 도중에 계정이나 저장 위치가 바뀌어도 처음 보관함에만 씁니다. */
+  root = '';
   finishedAt?: number;
   readonly control = new RunControl();
   readonly queue: DownloadQueue;
   private nextLogID = 0;
 
+  /** 지금 받는 글과 아직 차례가 오지 않은 글입니다. 목록에서 줄마다 받는 중, 대기 중으로 보여 줍니다. */
+  readonly activeIDs = new Set<string>();
+  readonly waitingIDs = new Set<string>();
+
   constructor(entries: ScrapEntry[], source: ArchiveSource) {
     this.queue = new DownloadQueue(entries, source);
+    entries.forEach((entry) => this.waitingIDs.add(entry.id));
   }
 
   get isActive(): boolean {
@@ -74,6 +81,7 @@ class DownloadJob {
 
   enqueue(entries: ScrapEntry[], source: ArchiveSource): number {
     const added = this.queue.enqueue(entries, source);
+    if (added > 0) entries.forEach((entry) => { if (!this.activeIDs.has(entry.id)) this.waitingIDs.add(entry.id); });
     if (added > 0) this.append('info', `대기열에 ${added}개 추가됨`);
     return added;
   }
@@ -82,6 +90,7 @@ class DownloadJob {
     switch (event.type) {
       case 'postStarted':
         this.currentTitle = event.entry.title;
+        this.activeIDs.add(event.entry.id);
         break;
       case 'mediaProgress':
         this.activeFiles.set(event.key, { id: event.key, received: event.received, expected: event.expected });
@@ -97,16 +106,19 @@ class DownloadJob {
         this.append('warning', `파일 다운로드 실패: ${event.reason}`);
         break;
       case 'postFinished':
+        this.done(event.entry.id);
         this.finishedPosts += 1;
         if (!event.complete) this.incompletePosts += 1;
         this.append(event.complete ? 'success' : 'warning', event.complete ? event.entry.title : `일부 실패: ${event.entry.title}`);
         break;
       case 'postFailed':
+        this.done(event.entry.id);
         this.finishedPosts += 1;
         this.failedPosts += 1;
         this.append('failure', `${event.entry.title}: ${event.reason}`);
         break;
       case 'postSkipped':
+        this.done(event.entry.id);
         this.finishedPosts += 1;
         this.append('info', `건너뜀: ${event.entry.title}`);
         break;
@@ -116,6 +128,12 @@ class DownloadJob {
       default:
         break;
     }
+  }
+
+  /** 끝난 글은 받는 중과 대기 목록에서 뺍니다. */
+  private done(id: string): void {
+    this.activeIDs.delete(id);
+    this.waitingIDs.delete(id);
   }
 
   append(level: LogLine['level'], text: string): void {
@@ -130,6 +148,7 @@ class DownloadJob {
       failedFiles: this.failedFiles, failedPosts: this.failedPosts, incompletePosts: this.incompletePosts,
       savedBytes: this.savedBytes, activeFiles: [...this.activeFiles.values()].sort((a, b) => a.id.localeCompare(b.id)),
       log: this.log, startedAt: this.startedAt, finishedAt: this.finishedAt,
+      activeIDs: this.isActive ? [...this.activeIDs] : [], waitingIDs: this.isActive ? [...this.waitingIDs].filter((id) => !this.activeIDs.has(id)) : [],
     };
   }
 }
@@ -162,6 +181,10 @@ export class AppModel {
   lastCheck?: number;
   autoCheckHours: number;
   autoDownloadNew: boolean;
+  /** 화면 모드입니다. 시스템을 따르거나 라이트, 다크로 고정합니다. */
+  theme: 'system' | 'light' | 'dark';
+  /** 다운로드를 마치거나 확인이 필요할 때 운영체제 알림을 띄웁니다. */
+  notifications: boolean;
 
   window?: BrowserWindow;
   /** 창 바탕에 쓰는 운영체제 재질입니다. 있으면 화면이 사이드바를 투명하게 둡니다. */
@@ -185,6 +208,9 @@ export class AppModel {
     this.options = mergeOptions(this.settings.get<Partial<DownloadOptions>>('downloadOptions'), path.isAbsolute(defaultFolder) ? defaultFolder : path.join(os.homedir(), defaultFolder));
     this.autoCheckHours = this.settings.get<number>('autoCheckHours') ?? 0;
     this.autoDownloadNew = this.settings.get<boolean>('autoDownloadNewScraps') ?? false;
+    this.theme = this.settings.get<'system' | 'light' | 'dark'>('theme') ?? 'system';
+    this.notifications = this.settings.get<boolean>('notifications') ?? true;
+    nativeTheme.themeSource = this.theme;
 
     this.browser.onChallengeChanged = (active) => this.challengeChanged(active);
     this.browser.onLoginDetected = (loginID) => this.loginCompleted(loginID);
@@ -221,7 +247,7 @@ export class AppModel {
         platform: process.platform, version: app.getVersion(), material: this.material, section: this.section, login: this.login,
         username: this.username, loginID: this.loginID, useAccountFolder: this.useAccountFolder, options: this.options,
         libraryRoot: this.libraryRoot, isBusy: this.isBusy, newScrapCount: this.newScrapCount,
-        lastCheck: this.lastCheck, autoCheckHours: this.autoCheckHours, autoDownloadNew: this.autoDownloadNew,
+        lastCheck: this.lastCheck, autoCheckHours: this.autoCheckHours, autoDownloadNew: this.autoDownloadNew, theme: this.theme, notifications: this.notifications,
         isLoadingLibrary: this.isLoadingLibrary,
       } satisfies Partial<AppState>);
     }
@@ -303,6 +329,7 @@ export class AppModel {
     await this.listTask;
     await this.browser.signOut();
     this.login = 'loggedOut';
+    this.clearJob();
     this.switchAccount(undefined);
     this.setUsername(undefined);
     this.scraps.entries = [];
@@ -477,6 +504,14 @@ export class AppModel {
     this.changed();
   }
 
+  /** 앱 전체와 창 재질, 로그인 창이 함께 바뀝니다. */
+  setTheme(theme: 'system' | 'light' | 'dark'): void {
+    this.theme = theme;
+    nativeTheme.themeSource = theme;
+    this.settings.set('theme', theme);
+    this.changed();
+  }
+
   setAutoDownloadNew(value: boolean): void {
     this.autoDownloadNew = value;
     this.settings.set('autoDownloadNewScraps', value);
@@ -514,8 +549,33 @@ export class AppModel {
 
   /** 알림에는 개수만 넣고 글 제목은 넣지 않습니다. */
   private notify(count: number): void {
-    if (!Notification.isSupported()) return;
-    new Notification({ title: app.getName(), body: `새 스크랩 ${count}개를 찾았습니다.` }).show();
+    this.notifyUser(`새 스크랩 ${count}개를 찾았습니다`, this.autoDownloadNew ? '자동으로 받기 시작합니다.' : '스크랩 목록에서 확인하세요.', 'scraps', true);
+  }
+
+  /**
+   * 운영체제 알림 센터로 알립니다. 앱 창을 보고 있을 때는 띄우지 않고, 누르면 해당 화면을 엽니다.
+   * 알림에는 글 제목을 넣지 않습니다.
+   */
+  private notifyUser(title: string, body: string, section: Section, evenIfFocused = false): void {
+    if (!this.notifications || !Notification.isSupported()) return;
+    if (!evenIfFocused && this.window && !this.window.isDestroyed() && this.window.isFocused()) return;
+    const notification = new Notification({ title, body });
+    notification.on('click', () => {
+      const window = this.window;
+      if (window && !window.isDestroyed()) {
+        if (window.isMinimized()) window.restore();
+        window.show();
+        window.focus();
+      }
+      this.setSection(section);
+    });
+    notification.show();
+  }
+
+  setNotifications(value: boolean): void {
+    this.notifications = value;
+    this.settings.set('notifications', value);
+    this.changed();
   }
 
   private clearNewScrapBadge(): void {
@@ -687,6 +747,7 @@ export class AppModel {
     if (this.isBusy) return;
 
     const job = new DownloadJob(selected, source);
+    job.root = this.libraryRoot;
     this.job = job;
     this.section = 'downloads';
     this.preventSleep(true);
@@ -696,7 +757,7 @@ export class AppModel {
       try {
         for (let batch = job.queue.nextBatch(); batch; batch = job.queue.nextBatch()) {
           // 사용자가 직접 고른 글이므로 받은 기록이 있어도 다시 확인합니다. 있는 파일은 재사용합니다.
-          const options: DownloadOptions = { ...this.options, destination: this.libraryRoot, source: batch.source, skipCompleted: false };
+          const options: DownloadOptions = { ...this.options, destination: job.root, source: batch.source, skipCompleted: false };
           await this.engine.download(batch.entries, options, job.control, (event) => {
             job.handle(event);
             if (event.type === 'postFinished') this.reloadRecords();
@@ -704,11 +765,14 @@ export class AppModel {
           });
         }
         job.status = 'finished';
+        const failed = job.failedPosts + job.incompletePosts;
+        this.notifyUser('다운로드를 마쳤습니다', `글 ${job.finishedPosts}개를 처리했습니다${failed > 0 ? ` (일부만 받은 글 ${failed}개)` : ''}. 파일 ${job.savedFiles}개를 저장했습니다.`, 'downloads');
       } catch (error) {
         if (error instanceof CancellationError || job.control.isCancelled) {
           job.status = 'cancelled';
         } else {
           job.status = 'failed';
+          this.notifyUser('다운로드가 멈췄습니다', errorMessage(error), 'downloads');
           job.failure = errorMessage(error);
           if (error instanceof UncaliveError && error.code === 'loginRequired') this.login = 'loggedOut';
         }
@@ -720,6 +784,13 @@ export class AppModel {
       this.window?.flashFrame(true);
       this.changed('job');
     })();
+  }
+
+  /** 끝난 다운로드의 기록을 지웁니다. 받는 중이면 지우지 않습니다. */
+  clearJob(): void {
+    if (!this.job || this.job.isActive) return;
+    this.job = undefined;
+    this.changed('job');
   }
 
   togglePause(): void {
@@ -748,7 +819,10 @@ export class AppModel {
   private challengeChanged(active: boolean): void {
     if (active) {
       this.browser.showChallenge();
-      if (this.job?.status === 'running') this.job.status = 'waitingForChallenge';
+      if (this.job?.status === 'running') {
+        this.job.status = 'waitingForChallenge';
+        this.notifyUser('보안 확인이 필요합니다', '열린 창에서 Cloudflare 확인을 마치면 다운로드가 이어집니다.', 'downloads');
+      }
     } else {
       this.browser.hide();
       if (this.job?.status === 'waitingForChallenge') this.job.status = 'running';
@@ -810,6 +884,8 @@ export class AppModel {
 
   /** 저장 위치나 계정이 바뀌면 화면의 목록도 그 보관함의 내용으로 바꿉니다. */
   private libraryDidChange(): void {
+    // 다른 보관함의 다운로드 기록(글 제목 등)이 보이지 않게 끝난 기록은 지웁니다.
+    this.clearJob();
     this.records = {};
     this.library = [];
     void this.loadCollection();

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, session as electronSession, type Session } from 'electron';
 import { CancellationError, UncaliveError } from '../core/models';
 import type { LoadedPage, PageKind, PageSource } from '../core/engine';
-import { log } from './log';
+import { log, loginLog, startLoginLog } from './log';
 
 const sessionCookie = 'arca.at';
 
@@ -10,6 +10,37 @@ export function normalizeLoginID(value: string | undefined): string | undefined 
   const id = (value ?? '').trim();
   return /^[a-z][a-z0-9_]{0,15}$/i.test(id) ? id.toLowerCase() : undefined;
 }
+
+/**
+ * 아카라이브 로그인 페이지는 가끔 캡챠가 '성공!'이 된 뒤에도 다음 단계로 넘어가지 않습니다(사이트가 캡챠 단계를 두 번 초기화하는 경우).
+ * Turnstile 함수에는 손대지 않고 화면만 읽다가, 성공한 뒤 10초가 지나도 그대로면 사이트의 제출 단추를 대신 한 번 누릅니다.
+ * 사이트가 느리게 넘어가는 경우도 있어서, 사이트의 요청과 겹쳐 두 번 보내지 않도록 넉넉히 기다립니다.
+ * 진단용으로 단계와 개수만 돌려주며, 토큰이나 입력값은 돌려주지 않습니다.
+ */
+const loginWatchScript = `(() => {
+  const w = window;
+  const active = document.querySelector('[id^="stage-"].active');
+  const stage = document.querySelector('#stage-3');
+  const box = document.querySelector('#recaptchaContainer');
+  const inputs = box ? [...box.querySelectorAll('input[name="cf-turnstile-response"]')] : [];
+  const tokens = inputs.filter((input) => input.value).length;
+  const button = stage && stage.querySelector('button[data-submitstage]');
+  const shown = button ? getComputedStyle(button).display !== 'none' : null;
+  let pressed = false;
+  if (active && active.id === 'stage-3' && tokens > 0) {
+    w.__uncaliveSolvedAt = w.__uncaliveSolvedAt || Date.now();
+    if (!w.__uncalivePressed && Date.now() - w.__uncaliveSolvedAt > 10000 && button) {
+      if (!shown) button.style.display = '';
+      w.__uncalivePressed = true;
+      button.click();
+      pressed = true;
+    }
+  } else {
+    w.__uncaliveSolvedAt = 0;
+    w.__uncalivePressed = false;
+  }
+  return JSON.stringify({ stage: active ? active.id : null, solvedFor: w.__uncaliveSolvedAt ? Math.round((Date.now() - w.__uncaliveSolvedAt) / 1000) : 0, widgets: inputs.length, frames: box ? box.querySelectorAll('iframe').length : 0, tokens, button: shown, pressed, modal: !!document.querySelector('.modal.show') });
+})()`;
 
 function stateScript(selector: string): string {
   return `(function () {
@@ -227,6 +258,8 @@ export class BrowserController implements PageSource {
     if (this.loginWatch) clearInterval(this.loginWatch);
     void this.sessionValue().then((previous) => {
       let busy = false;
+      let lastState = '';
+      startLoginLog();
       this.loginWatch = setInterval(async () => {
         if (!this.waitingForLogin || busy) return;
         busy = true;
@@ -235,6 +268,11 @@ export class BrowserController implements PageSource {
           const typed = await this.evaluate<string>("(document.querySelector('input[name=username]') || {}).value || ''");
           const id = normalizeLoginID(typed);
           if (id) this.typedLoginID = id;
+          const state = await this.evaluate<string>(loginWatchScript);
+          if (state && state !== lastState) {
+            loginLog(state);
+            lastState = state;
+          }
           const current = await this.sessionValue();
           if (current !== undefined && current !== previous) this.finishLogin();
         } finally {

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X } from 'lucide-react';
 
 export function EmptyState(props: { icon: ReactNode; title: string; description?: ReactNode; actions?: ReactNode }) {
@@ -21,21 +22,54 @@ export function Spinner(props: { label?: string }) {
   );
 }
 
+/**
+ * 여럿 중 하나를 고르는 단추 묶음입니다. 누르는 순간 바뀌고, 고른 표시가 다음 단추로 미끄러져 갑니다.
+ */
 export function Segmented<T extends string | number>(props: {
   value: T;
   options: Array<{ value: T; label: string }>;
   onChange: (value: T) => void;
   label?: string;
 }) {
+  const box = useRef<HTMLDivElement>(null);
+  const buttons = useRef(new Map<string, HTMLButtonElement>());
+  const thumb = useRef<HTMLSpanElement>(null);
+  const placed = useRef(false);
+
+  useLayoutEffect(() => {
+    const place = () => {
+      const button = buttons.current.get(String(props.value));
+      const element = thumb.current;
+      if (!button || !element) return;
+      if (!placed.current) element.style.transition = 'none';
+      element.style.transform = `translateX(${button.offsetLeft}px)`;
+      element.style.width = `${button.offsetWidth}px`;
+      element.style.opacity = '1';
+      if (!placed.current) {
+        void element.offsetWidth;
+        element.style.transition = '';
+        placed.current = true;
+      }
+    };
+    place();
+    // 칸 너비가 바뀌어도(창 크기, 글꼴 불러오기) 표시가 단추를 따라가게 합니다.
+    const observer = new ResizeObserver(place);
+    if (box.current) observer.observe(box.current);
+    return () => observer.disconnect();
+  }, [props.value, props.options.length]);
+
   return (
-    <div className="segmented" role="radiogroup" aria-label={props.label}>
+    <div className="segmented" role="radiogroup" aria-label={props.label} ref={box}>
+      <span className="segmented-thumb" ref={thumb} aria-hidden />
       {props.options.map((option) => (
         <button
           key={String(option.value)}
+          ref={(button) => { if (button) buttons.current.set(String(option.value), button); else buttons.current.delete(String(option.value)); }}
           role="radio"
           aria-checked={option.value === props.value}
           className={option.value === props.value ? 'selected' : ''}
-          onClick={() => props.onChange(option.value)}
+          onPointerDown={(event) => { if (event.button === 0 && option.value !== props.value) props.onChange(option.value); }}
+          onClick={(event) => { if (event.detail === 0 && option.value !== props.value) props.onChange(option.value); }}
         >
           {option.label}
         </button>
@@ -153,12 +187,14 @@ export function useContextMenu() {
     event.preventDefault();
     setMenu({ x: event.clientX, y: event.clientY, items });
   };
-  const element = menu ? (
+  // 창 전체 위에 그립니다. 화면 안에 두면 움직임 효과가 기준을 바꿔 사이드바를 덮지 못합니다.
+  const element = menu ? createPortal(
     <div className="context-menu" style={{ left: Math.min(menu.x, window.innerWidth - 200), top: Math.min(menu.y, window.innerHeight - menu.items.length * 32 - 12) }} role="menu">
       {menu.items.map((item) => (
         <button key={item.label} role="menuitem" className={item.danger ? 'danger' : ''} disabled={item.disabled} onClick={item.onClick}>{item.label}</button>
       ))}
-    </div>
+    </div>,
+    document.body,
   ) : null;
   return { open, element };
 }
@@ -188,13 +224,14 @@ export function Dialog(props: { title: string; children: ReactNode; onClose: () 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
-  return (
+  return createPortal(
     <div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) props.onClose(); }}>
       <div className="dialog" role="dialog" aria-modal aria-label={props.title} style={{ width: props.width ?? 540 }}>
         <h2>{props.title}</h2>
         {props.children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -235,7 +272,7 @@ export function ToastHost() {
     toastListeners.add(listener);
     return () => { toastListeners.delete(listener); };
   }, []);
-  return (
+  return createPortal(
     <div className="toasts" role="status" aria-live="polite">
       {items.map((item) => (
         <div key={item.id} className={`toast ${item.leaving ? 'leaving' : ''}`}>
@@ -248,6 +285,28 @@ export function ToastHost() {
           )}
         </div>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
+}
+
+/** 닫을 때도 움직임이 끝날 때까지 그려 두도록, 보이기 상태를 늦게 따라갑니다. */
+export function usePresence(show: boolean, duration = 200): { mounted: boolean; closing: boolean } {
+  const [mounted, setMounted] = useState(show);
+  const [closing, setClosing] = useState(false);
+  useEffect(() => {
+    if (show) {
+      setMounted(true);
+      setClosing(false);
+      return;
+    }
+    if (!mounted) return;
+    setClosing(true);
+    const timer = setTimeout(() => {
+      setMounted(false);
+      setClosing(false);
+    }, duration);
+    return () => clearTimeout(timer);
+  }, [show]);
+  return { mounted, closing };
 }

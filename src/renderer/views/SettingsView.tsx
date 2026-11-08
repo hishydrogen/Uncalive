@@ -43,6 +43,16 @@ function General({ state }: { state: AppState }) {
   return (
     <>
       <section className="card">
+        <Row label="화면 모드">
+          <Segmented<AppState['theme']> label="화면 모드" value={state.theme} onChange={(theme) => void call('setTheme', theme)} options={[
+            { value: 'system', label: '시스템' }, { value: 'light', label: '라이트' }, { value: 'dark', label: '다크' },
+          ]} />
+        </Row>
+        <Toggle label="알림 보내기" checked={state.notifications} onChange={(value) => void call('setNotifications', value)} />
+        <p className="caption">다운로드를 마치거나 멈췄을 때, 보안 확인이 필요할 때, 새 스크랩을 찾았을 때 운영체제 알림으로 알립니다. 앱 창을 보고 있을 때는 띄우지 않으며, 알림에 글 제목은 넣지 않습니다.</p>
+      </section>
+
+      <section className="card">
         <Row label="저장 위치">
           <span className="path" title={options.destination}><span dir="ltr">{options.destination}</span></span>
           <button onClick={() => void call('chooseDestination')} disabled={jobActive}>변경…</button>

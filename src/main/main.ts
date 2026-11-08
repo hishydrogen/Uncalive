@@ -24,8 +24,8 @@ protocol.registerSchemesAsPrivileged([
 
 const commands = new Set<CommandName>([
   'setSection', 'signIn', 'signOut', 'refreshScraps', 'stopLoading', 'addTargets', 'clearCollection', 'removeFromCollection',
-  'removeCheckedFromCollection', 'removeFromCollectionMany', 'undoRemoveFromCollection', 'setSelection', 'setChecked', 'checkUnsaved', 'startDownload', 'togglePause', 'cancelDownload', 'exportCSV',
-  'setOptions', 'setUseAccountFolder', 'setAutoCheckHours', 'setAutoDownloadNew', 'checkNow', 'chooseDestination', 'openPost',
+  'removeCheckedFromCollection', 'removeFromCollectionMany', 'undoRemoveFromCollection', 'setSelection', 'setChecked', 'checkUnsaved', 'startDownload', 'togglePause', 'cancelDownload', 'clearJob', 'exportCSV',
+  'setOptions', 'setUseAccountFolder', 'setAutoCheckHours', 'setAutoDownloadNew', 'setTheme', 'setNotifications', 'checkNow', 'chooseDestination', 'openPost',
   'revealPost', 'revealFile', 'openLibraryFolder', 'reloadLibrary', 'searchLibrary',
 ]);
 
