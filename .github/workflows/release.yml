@@ -1,0 +1,56 @@
+name: Release
+
+# 버전 태그(v2.0.0 같은)를 올리면 세 운영체제의 설치 파일을 만들어 같은 이름의 릴리스에 붙입니다.
+# 릴리스가 없으면 초안으로 만들므로, 노트를 확인한 뒤 직접 공개하면 됩니다.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 파일을 붙일 릴리스 태그 (예 v2.0.0)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }} 설치 파일
+    strategy:
+      matrix:
+        include:
+          - name: macOS
+            # 리퀴드 글래스 아이콘(AppIcon.icon)을 만들려면 Xcode 26 이상의 actool이 필요합니다.
+            os: macos-26
+            command: npx electron-builder --mac --arm64 --x64 --publish never
+          - name: Windows
+            os: windows-latest
+            command: npx electron-builder --win --x64 --arm64 --publish never
+          - name: Linux
+            os: ubuntu-latest
+            command: npx electron-builder --linux --x64 --arm64 --publish never
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: ${{ matrix.command }}
+      - name: 릴리스에 올리기
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          cd dist
+          shopt -s nullglob
+          files=(Uncalive-*-macOS-*.dmg Uncalive-*-macOS-*.zip Uncalive-*-Windows-*-Setup.exe Uncalive-*-Windows-*-Portable.zip Uncalive-*-Linux-*.AppImage)
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --draft --title "언카라이브 ${TAG#v}" --notes-file ../CHANGELOG.md || true
+          gh release upload "$TAG" "${files[@]}" --clobber

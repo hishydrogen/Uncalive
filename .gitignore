@@ -1,10 +1,8 @@
 .DS_Store
-.build/
-.swiftpm/
+node_modules/
 build/
 dist/
-DerivedData/
-xcuserdata/
+smoke-shots/
 __pycache__/
 *.pyc
 .venv/

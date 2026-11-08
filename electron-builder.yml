@@ -1,0 +1,59 @@
+# Windows와 Linux용 설치 파일을 만듭니다. 서명하지 않은 빌드입니다.
+appId: io.github.hishydrogen.uncalive
+# 맥에서 Electron은 번들 이름이 한글이면 시작하자마자 멈춥니다. 파일 이름은 영문으로 두고, 보이는 이름만 한글로 합니다.
+productName: Uncalive
+artifactName: Uncalive-${version}-${os}-${arch}.${ext}
+copyright: Copyright © 2026 hishydrogen
+directories:
+  output: dist
+  buildResources: resources
+files:
+  - build/**/*
+  - "!build/**/*.map"
+  - package.json
+extraResources:
+  - from: resources/icon.png
+    to: icon.png
+asar: true
+# 화면 글자는 한국어뿐이므로 Chromium 언어 파일도 한국어와 영어만 넣습니다.
+electronLanguages:
+  - ko
+  - en-US
+win:
+  icon: resources/icon.png
+  executableName: Uncalive
+  artifactName: Uncalive-${version}-Windows-${arch}-Portable.${ext}
+  target:
+    - target: nsis
+    - target: zip
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: 언카라이브
+  uninstallDisplayName: 언카라이브
+  artifactName: Uncalive-${version}-Windows-${arch}-Setup.${ext}
+linux:
+  icon: resources/icon.png
+  category: Network
+  executableName: uncalive
+  artifactName: Uncalive-${version}-Linux-${arch}.${ext}
+  target:
+    - AppImage
+mac:
+  # 맥 26 이상은 리퀴드 글래스 아이콘을, 그 이전 맥은 같은 파일에서 만든 일반 아이콘을 씁니다. Xcode 26 이상의 actool이 필요합니다.
+  icon: resources/AppIcon.icon
+  category: public.app-category.utilities
+  minimumSystemVersion: "13.0"
+  artifactName: Uncalive-${version}-macOS-${arch}.${ext}
+  # 애플 개발자 인증서 없이 만듭니다. 애플 실리콘에서 실행되도록 임시(ad-hoc) 서명만 합니다.
+  identity: "-"
+  hardenedRuntime: false
+  extendInfo:
+    CFBundleDisplayName: 언카라이브
+  target:
+    - target: dmg
+    - target: zip
+dmg:
+  title: 언카라이브

@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (Apple Silicon)
+            os: macos-latest
+          - name: Windows x64
+            os: windows-latest
+          - name: Windows ARM
+            os: windows-11-arm
+          - name: Linux x64
+            os: ubuntu-latest
+          - name: Linux ARM
+            os: ubuntu-24.04-arm
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 타입 검사
+        run: npm run typecheck
+      - name: 단위 시험
+        run: npm test
+      - name: 빌드
+        run: npm run build
+      - name: Linux 화면 준비
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y xvfb
+          # Ubuntu 24.04는 Chromium 샌드박스가 쓰는 사용자 이름공간을 막아 둡니다. 시험 서버에서만 풉니다.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: 앱을 띄워 화면 확인
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run --auto-servernum node scripts/smoke.mjs smoke-shots; else node scripts/smoke.mjs smoke-shots; fi
+      - name: 화면 캡처 보관
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-${{ matrix.os }}
+          path: smoke-shots
+          if-no-files-found: ignore

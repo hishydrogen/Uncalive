@@ -1,0 +1,38 @@
+{
+  "name": "uncalive",
+  "productName": "Uncalive",
+  "version": "2.0.0",
+  "description": "아카라이브 스크랩 글을 내려받아 인터넷 없이 읽는 프로그램",
+  "author": "hishydrogen",
+  "license": "MIT",
+  "private": true,
+  "main": "build/main.js",
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "cheerio": "^1.2.0",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "image-size": "^2.1.0",
+    "lucide-react": "^1.70.0",
+    "playwright-core": "^1.65.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p .",
+    "build": "node scripts/build-main.mjs && vite build",
+    "start": "npm run build && electron .",
+    "dev": "node scripts/dev.mjs",
+    "dist:win": "npm run build && electron-builder --win --x64 --arm64",
+    "dist:linux": "npm run build && electron-builder --linux --x64",
+    "dist:mac": "npm run build && electron-builder --mac --dir"
+  }
+}

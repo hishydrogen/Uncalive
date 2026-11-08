@@ -1,0 +1,97 @@
+import { useEffect, useState } from 'react';
+import type { AppState, CommandName, Commands } from '../shared/types';
+
+interface Bridge {
+  getState(): Promise<AppState>;
+  call(name: string, ...args: unknown[]): Promise<unknown>;
+  onState(listener: (state: Partial<AppState>) => void): () => void;
+}
+
+const bridge = (window as unknown as { uncalive: Bridge }).uncalive;
+
+/** 메인 프로세스의 `AppModel`에 명령을 보냅니다. */
+export function call<K extends CommandName>(name: K, ...args: Parameters<Commands[K]>): Promise<Awaited<ReturnType<Commands[K]>>> {
+  return bridge.call(name, ...args) as Promise<Awaited<ReturnType<Commands[K]>>>;
+}
+
+/** 메인 프로세스가 보내는 상태를 받습니다. 바뀐 부분만 오므로 앞의 상태에 덮어씁니다. */
+export function useAppState(): AppState | undefined {
+  const [state, setState] = useState<AppState>();
+  useEffect(() => {
+    let pending: Partial<AppState> = {};
+    let ready = false;
+    const stop = bridge.onState((partial) => {
+      if (!ready) {
+        pending = { ...pending, ...partial };
+        return;
+      }
+      setState((previous) => (previous ? { ...previous, ...partial } : previous));
+    });
+    void bridge.getState().then((initial) => {
+      ready = true;
+      setState({ ...initial, ...pending });
+    });
+    return stop;
+  }, []);
+  return state;
+}
+
+/** 보관함 안의 파일을 화면에서 여는 주소입니다. */
+export function mediaURL(relative: string): string {
+  return 'uncalive-media://library/' + relative.split('/').map(encodeURIComponent).join('/');
+}
+
+/** 창 안에서만 쓰는 값을 기억합니다. 저장소를 쓸 수 없으면 기본값으로 동작합니다. */
+export function usePreference<T>(key: string, initial: T): [T, (value: T) => void] {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const saved = localStorage.getItem(key);
+      return saved === null ? initial : (JSON.parse(saved) as T);
+    } catch {
+      return initial;
+    }
+  });
+  const update = (next: T) => {
+    setValue(next);
+    try { localStorage.setItem(key, JSON.stringify(next)); } catch { /* 기억하지 못해도 괜찮습니다. */ }
+  };
+  return [value, update];
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1000) return `${bytes}바이트`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = bytes / 1000;
+  let unit = 0;
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000;
+    unit += 1;
+  }
+  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`;
+}
+
+export function formatDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const rest = total % 60;
+  if (hours > 0) return `${hours}시간 ${minutes}분`;
+  if (minutes > 0) return `${minutes}분 ${rest}초`;
+  return `${rest}초`;
+}
+
+export function formatShortDate(iso?: string): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(date.getFullYear() % 100)}.${pad(date.getMonth() + 1)}.${pad(date.getDate())}`;
+}
+
+export const qualityTitles = { original: '원본', balanced: '균형', display: '웹 표시용' } as const;
+
+export const qualityDetails = {
+  original: '모든 파일을 원본으로 받습니다. 원본 서버의 속도 제한(약 200KB/s) 때문에 가장 느립니다.',
+  balanced: '가로 1280px보다 큰 이미지만 원본으로 받습니다. 그 이하인 이미지는 해상도가 같은 압축본으로 받아 속도가 훨씬 빠릅니다.',
+  display: '모든 이미지를 웹 표시용 압축본으로 받습니다. 가장 빠르지만, 큰 이미지는 가로 1280px 크기로 줄어듭니다.',
+} as const;
