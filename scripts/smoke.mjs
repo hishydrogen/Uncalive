@@ -24,7 +24,11 @@ try {
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   await page.waitForSelector('.sidebar', { timeout: 15000 });
-  const snap = async (name) => { if (shots) await page.screenshot({ path: path.join(shots, `${name}.png`) }); };
+  // 화면 캡처는 참고용입니다. 가상 화면처럼 캡처가 안 되는 곳에서도 확인은 계속합니다.
+  const snap = async (name) => {
+    if (!shots) return;
+    await page.screenshot({ path: path.join(shots, `${name}.png`) }).catch((error) => console.log(`캡처 못 함(${name}): ${error.message.split('\n')[0]}`));
+  };
 
   await page.waitForSelector('text=로그인이 필요합니다', { timeout: 15000 });
   check(true, '로그인 전 안내 화면이 보인다');

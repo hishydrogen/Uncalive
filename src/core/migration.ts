@@ -38,7 +38,8 @@ function pathOf(value: unknown): string | undefined {
   const raw = typeof value === 'string' ? value : (value as { relative?: string } | undefined)?.relative;
   if (!raw) return undefined;
   try {
-    return raw.startsWith('file:') ? fileURLToPath(raw) : raw;
+    // 예전 설정은 맥에서만 오므로 어느 운영체제에서 읽든 맥 경로로 바꿉니다.
+    return raw.startsWith('file:') ? fileURLToPath(raw, { windows: false }) : raw;
   } catch {
     return undefined;
   }
