@@ -1,0 +1,2 @@
+/* Finder, Launchpad, Dock에 보이는 이름입니다. 번들 이름(Uncalive)은 그대로 둡니다. */
+"CFBundleDisplayName" = "언카라이브";

@@ -81,4 +81,4 @@ npx electron-builder --linux --x64 --arm64
 - **보관함 형식 유지**: `state.json`, `collection.json`, `.uncalive/text/`의 형식은 1.x 맥판과 같습니다. 날짜는 소수점 없는 ISO 8601로 씁니다. 1.x 맥판으로 받은 보관함을 그대로 읽습니다.
 - **오프라인 페이지 재작성**: 본문과 댓글 HTML에서 `<script>`, `<style>`, 이벤트 속성, 외부 통신 요소를 모두 지우고 `Content-Security-Policy: script-src 'none'`을 넣습니다. 미디어 경로는 내려받은 파일의 상대 경로로 바꿉니다.
 - **화면 보안**: 화면은 샌드박스와 컨텍스트 격리 안에서 돌고, 미리 정한 명령만 메인 프로세스에 보낼 수 있습니다. 보관함 파일은 `uncalive-media:` 프로토콜로 보관함 폴더 안의 파일만 보여 줍니다.
-- **맥의 앱 이름**: 맥에서 Electron은 번들 이름이 한글이면 시작하자마자 멈춥니다. 그래서 파일 이름은 `Uncalive.app`으로 두고, 메뉴와 Dock에 보이는 이름만 한글로 합니다.
+- **맥의 앱 이름**: 맥에서 Electron은 번들 이름(`CFBundleName`)이 한글이면 시작하자마자 멈춥니다. 그래서 파일과 번들 이름은 `Uncalive`로 두고, Finder와 Launchpad, Dock에 보이는 '언카라이브'는 언어별 이름 파일(`resources/mac/InfoPlist.strings`)로 붙입니다. 이때 Info.plist의 기본 `CFBundleDisplayName`은 파일 이름과 같은 `Uncalive`여야 합니다. 다르면 macOS가 사용자가 이름을 바꾼 앱으로 보고 파일 이름을 보여 줍니다.
