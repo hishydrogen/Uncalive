@@ -293,7 +293,9 @@ export function useChecks(kind: ListKind, serverChecked: string[]) {
   if (!pending.current) current.current = checked;
 
   useEffect(() => {
-    if (local && local.size === server.size && [...local].every((id) => server.has(id))) setLocal(null);
+    // 이 효과가 돌기 직전에 새 체크가 들어올 수 있습니다(느린 컴퓨터에서 빠르게 연달아 누를 때).
+    // 그린 때의 local이 아니라 가장 최근 값과 비교해야 방금 누른 체크를 서버의 옛 상태로 덮어쓰지 않습니다.
+    setLocal((latest) => (latest && latest.size === server.size && [...latest].every((id) => server.has(id)) ? null : latest));
   }, [server, local]);
 
   const commit = useCallback((next: Set<string>) => {
