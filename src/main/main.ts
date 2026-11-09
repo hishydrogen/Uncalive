@@ -9,6 +9,7 @@ import { BrowserController } from './browser';
 import { log } from './log';
 import { importLegacySettings } from './migrate';
 import { AppModel } from './model';
+import { Thumbnails } from './thumbnails';
 
 const isDev = !app.isPackaged;
 const appName = isDev ? 'Uncalive Dev' : '언카라이브';
@@ -32,6 +33,7 @@ const commands = new Set<CommandName>([
 ]);
 
 let model: AppModel;
+const thumbnails = new Thumbnails(path.join(app.getPath('userData'), 'Thumbnails'));
 let mainWindow: BrowserWindow | undefined;
 let tray: Tray | undefined;
 let quitting = false;
@@ -52,6 +54,27 @@ function keepsRunning(): boolean {
   return model.job?.isActive === true || model.autoCheckHours > 0;
 }
 
+/**
+ * Windows에서는 맥처럼 제목 표시줄을 없애고 앱 화면을 창 맨 위까지 씁니다. 최소화·최대화·닫기 단추만 운영체제가 오른쪽 위에 그립니다.
+ * 단추 바탕은 그 자리에 오는 도구 막대 색과 같게 칠하고, 크게 보기를 열면 어두운 막대 색으로 바꿉니다.
+ */
+const titleBarHeight = 40;
+let lightboxOpen = false;
+function titleBarOverlay(): Electron.TitleBarOverlayOptions {
+  if (lightboxOpen) return { color: '#15151b', symbolColor: '#eeeeee', height: titleBarHeight };
+  const dark = nativeTheme.shouldUseDarkColors;
+  // styles.css의 --surface-2와 --text입니다.
+  return { color: dark ? '#212127' : '#fbfbfc', symbolColor: dark ? '#f1f1f5' : '#17171c', height: titleBarHeight };
+}
+function updateTitleBarOverlay(): void {
+  if (process.platform === 'win32' && mainWindow && !mainWindow.isDestroyed()) mainWindow.setTitleBarOverlay(titleBarOverlay());
+}
+
+/** 화면이 창 상태(전체 화면)에 맞춰 그릴 수 있게 알려 줍니다. */
+function sendWindowState(window: BrowserWindow): void {
+  if (!window.isDestroyed()) window.webContents.send('window', { fullScreen: window.isFullScreen() });
+}
+
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1160,
@@ -69,6 +92,7 @@ function createWindow(): BrowserWindow {
       vibrancy: 'sidebar' as const,
       visualEffectState: 'followWindow' as const,
     } : {}),
+    ...(process.platform === 'win32' ? { titleBarStyle: 'hidden' as const, titleBarOverlay: titleBarOverlay() } : {}),
     ...(windowMaterial() === 'mica' ? { backgroundMaterial: 'mica' as const } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -79,6 +103,9 @@ function createWindow(): BrowserWindow {
     },
   });
   window.once('ready-to-show', () => window.show());
+  window.on('enter-full-screen', () => sendWindowState(window));
+  window.on('leave-full-screen', () => sendWindowState(window));
+  window.webContents.on('did-finish-load', () => sendWindowState(window));
   window.on('focus', () => model.windowFocused());
   window.on('close', (event) => {
     if (quitting || !keepsRunning()) return;
@@ -201,10 +228,19 @@ function registerMediaProtocol(): void {
     const relative = url.pathname.slice(1).split('/').map((segment) => decodeURIComponent(segment)).join('/');
     const target = model.resolveLibraryPath(relative);
     if (!target) return new Response('없는 파일입니다.', { status: 404 });
+    if (url.host === 'thumb') return thumbnailResponse(target, url.searchParams.has('video'));
     const range = request.headers.get('range');
     if (!range) return net.fetch(pathToFileURL(target).toString(), { headers: request.headers });
     return rangeResponse(target, range);
   });
+}
+
+/** 칸에 쓰는 작은 그림을 보냅니다. 만들 수 없으면 사진은 원본을 보내고, 동영상은 화면이 동영상으로 대신 그리도록 404를 보냅니다. */
+async function thumbnailResponse(target: string, isVideo: boolean): Promise<Response> {
+  const thumbnail = await thumbnails.get(target, isVideo);
+  if (thumbnail) return net.fetch(pathToFileURL(thumbnail).toString());
+  if (isVideo) return new Response('작은 그림을 만들 수 없습니다.', { status: 404 });
+  return net.fetch(pathToFileURL(target).toString());
 }
 
 const mediaTypes: Record<string, string> = {
@@ -250,6 +286,12 @@ async function rangeResponse(target: string, header: string): Promise<Response> 
 
 function registerIPC(): void {
   ipcMain.handle('state', () => model.snapshot());
+  ipcMain.on('lightbox', (event, open: unknown) => {
+    if (event.sender !== mainWindow?.webContents) return;
+    lightboxOpen = open === true;
+    updateTitleBarOverlay();
+  });
+  nativeTheme.on('updated', updateTitleBarOverlay);
   ipcMain.handle('command', async (event, name: CommandName, args: unknown[]) => {
     if (event.sender !== mainWindow?.webContents) throw new Error('허용되지 않은 요청입니다.');
     if (!commands.has(name)) throw new Error(`알 수 없는 명령입니다: ${name}`);
@@ -318,6 +360,7 @@ if (!app.requestSingleInstanceLock()) {
     model = new AppModel(process.env.UNCALIVE_DEFAULT_FOLDER ?? defaultFolder);
     model.material = windowMaterial();
     registerMediaProtocol();
+    void thumbnails.prune();
     registerIPC();
     buildMenu();
     mainWindow = createWindow();

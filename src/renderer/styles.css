@@ -359,13 +359,15 @@ progress:indeterminate { background: linear-gradient(90deg, transparent 0%, var(
 .gallery-cell:focus-visible { box-shadow: 0 0 0 3px var(--accent); }
 .cell-media { width: 100%; height: 100%; position: relative; }
 
-.lightbox { position: fixed; inset: 0; z-index: 70; background: rgba(8, 8, 14, .94); overflow: hidden; display: flex; align-items: center; justify-content: center; animation: fade-in var(--base) var(--ease) backwards; }
-.lightbox img, .lightbox video { max-width: calc(100vw - 140px); max-height: calc(100vh - 100px); object-fit: contain; border-radius: 4px; box-shadow: 0 20px 60px rgba(0, 0, 0, .5); }
-.lightbox-stage { width: calc(100vw - 140px); height: calc(100vh - 100px); margin-top: 40px; display: flex; align-items: center; justify-content: center; overflow: visible; touch-action: none; }
-.lightbox-stage img, .lightbox-stage video { max-width: 100%; max-height: 100%; transform-origin: center; will-change: transform; user-select: none; }
+.lightbox { position: fixed; inset: 0; z-index: 70; background: rgba(8, 8, 14, .94); overflow: hidden; display: flex; flex-direction: column; animation: fade-in var(--base) var(--ease) backwards; }
+/* 사진이 보이는 곳은 위 막대 아래뿐입니다. 확대한 사진은 이 테두리에서 잘립니다. */
+.lightbox-view { flex: 1; min-height: 0; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.lightbox-stage { width: calc(100% - 140px); height: calc(100% - 48px); display: flex; align-items: center; justify-content: center; overflow: visible; touch-action: none; }
+.lightbox-stage img, .lightbox-stage video { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px; box-shadow: 0 20px 60px rgba(0, 0, 0, .5); transform-origin: center; will-change: transform; user-select: none; }
 .lightbox-tools { display: flex; align-items: center; gap: 2px; padding: 2px; margin-right: 8px; border-radius: 9px; background: rgba(255, 255, 255, .08); }
 .lightbox-tools .zoom-label { min-width: 52px; justify-content: center; font-variant-numeric: tabular-nums; font-size: 12px; }
-.lightbox-bar { z-index: 2; position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 8px; padding: 12px 16px; color: #eee; background: linear-gradient(rgba(0, 0, 0, .45), transparent); }
+/* 막대는 불투명하게 칠합니다. 비치게 두면 뒤의 사이드바 재질이 얼룩처럼 보입니다. Windows 창 단추 바탕(#15151b)과 같은 색입니다. */
+.lightbox-bar { z-index: 2; position: relative; flex: none; height: 52px; display: flex; align-items: center; gap: 8px; padding: 0 16px; color: #eee; background: #15151b; border-bottom: 1px solid rgba(255, 255, 255, .07); }
 .lightbox-bar button.plain { color: #ddd; }
 .lightbox-bar button.plain:hover { background: rgba(255, 255, 255, .14); color: white; }
 .lightbox-nav { z-index: 2; position: absolute; top: 50%; transform: translateY(-50%); height: 56px; width: 44px; justify-content: center; border: none; box-shadow: none; border-radius: 12px; background: rgba(255, 255, 255, .08); color: #eee; }
@@ -403,6 +405,18 @@ progress:indeterminate { background: linear-gradient(90deg, transparent 0%, var(
 .platform-darwin .toolbar { -webkit-app-region: drag; }
 .platform-darwin .toolbar button, .platform-darwin .toolbar input, .platform-darwin .toolbar select, .platform-darwin .toolbar .segmented { -webkit-app-region: no-drag; }
 
+/* Windows도 제목 표시줄 자리까지 화면을 씁니다. 오른쪽 위 창 단추(높이 40px) 자리는 도구 막대에서 비워 둡니다.
+ * 단추 너비는 운영체제가 알려 주는 값(titlebar-area)을 쓰고, 모르면 Windows 11 기본값인 138px로 둡니다. */
+.platform-win32 { --caption-width: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 138px))); }
+.platform-win32 .sidebar { padding-top: 0; -webkit-app-region: drag; }
+.platform-win32 .sidebar button, .platform-win32 .sidebar .account { -webkit-app-region: no-drag; }
+.window-title { height: 40px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 6px; margin-bottom: 4px; font-size: 12px; color: var(--muted); }
+.window-title img { border-radius: 4px; }
+.platform-win32 .toolbar { -webkit-app-region: drag; padding-right: calc(18px + var(--caption-width)); }
+.platform-win32 .toolbar button, .platform-win32 .toolbar input, .platform-win32 .toolbar select, .platform-win32 .toolbar .segmented { -webkit-app-region: no-drag; }
+html.platform-win32 .lightbox-bar { padding-right: calc(16px + var(--caption-width)); -webkit-app-region: drag; }
+html.platform-win32 .lightbox-bar button { -webkit-app-region: no-drag; }
+
 /* 운영체제에서 '동작 줄이기'를 켜면 움직임을 모두 끕니다. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
@@ -415,6 +429,8 @@ html.capture .sidebar { background: var(--sidebar) !important; }
 /* 창 전체를 덮는 화면은 아래 사이드바와 도구 막대의 '창 끌기' 영역을 지웁니다. 그렇지 않으면 그 자리의 클릭을 운영체제가 가져갑니다. */
 .lightbox, .dialog-backdrop, .context-menu, .toasts { -webkit-app-region: no-drag; }
 html.platform-darwin .lightbox-bar { padding-left: 92px; -webkit-app-region: drag; }
+/* 전체 화면에서는 창 단추가 숨으므로 제목을 왼쪽 끝부터 씁니다. */
+html.platform-darwin.fullscreen .lightbox-bar { padding-left: 16px; }
 html.platform-darwin .lightbox-bar button { -webkit-app-region: no-drag; }
 
 /* 보관함과 갤러리의 고르기 */
@@ -434,3 +450,6 @@ html.platform-darwin .lightbox-bar button { -webkit-app-region: no-drag; }
 .selection-bar strong { font-weight: 650; font-variant-numeric: tabular-nums; }
 button.danger-fill, button.primary.danger-fill { background: var(--danger); color: #fff; box-shadow: none; }
 button.primary.danger-fill:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 88%, black); }
+
+/* 갤러리 칸이 수백 개여도 창 크기를 바꿀 때 화면에 보이는 칸만 다시 그립니다. */
+.gallery-cell { content-visibility: auto; contain-intrinsic-size: auto 150px; }

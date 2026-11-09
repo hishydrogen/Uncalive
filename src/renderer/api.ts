@@ -5,6 +5,8 @@ interface Bridge {
   getState(): Promise<AppState>;
   call(name: string, ...args: unknown[]): Promise<unknown>;
   onState(listener: (state: Partial<AppState>) => void): () => void;
+  onWindow(listener: (state: { fullScreen: boolean }) => void): () => void;
+  setLightbox(open: boolean): void;
 }
 
 const bridge = (window as unknown as { uncalive: Bridge }).uncalive;
@@ -36,9 +38,26 @@ export function useAppState(): AppState | undefined {
   return state;
 }
 
+const encodePath = (relative: string) => relative.split('/').map(encodeURIComponent).join('/');
+
+/** 전체 화면이면 html에 fullscreen을 붙입니다. 맥은 전체 화면에서 창 단추가 숨으므로 그 자리를 비워 두지 않습니다. */
+export function watchWindowState(): () => void {
+  return bridge.onWindow((state) => document.documentElement.classList.toggle('fullscreen', state.fullScreen));
+}
+
+/** 크게 보기를 열고 닫은 것을 알립니다. Windows는 창 단추 색을 어두운 막대에 맞춥니다. */
+export function setLightboxOpen(open: boolean): void {
+  bridge.setLightbox(open);
+}
+
 /** 보관함 안의 파일을 화면에서 여는 주소입니다. */
 export function mediaURL(relative: string): string {
-  return 'uncalive-media://library/' + relative.split('/').map(encodeURIComponent).join('/');
+  return 'uncalive-media://library/' + encodePath(relative);
+}
+
+/** 갤러리와 보관함 칸에 쓰는 작은 그림의 주소입니다. 동영상은 첫 장면으로 만듭니다. */
+export function thumbnailURL(relative: string, isVideo = false): string {
+  return 'uncalive-media://thumb/' + encodePath(relative) + (isVideo ? '?video' : '');
 }
 
 /** 창 안에서만 쓰는 값을 기억합니다. 저장소를 쓸 수 없으면 기본값으로 동작합니다. */

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Archive, ChevronDown, ChevronRight, FileText, Loader2, Play } from 'lucide-react';
-import { call, mediaURL, usePreference } from '../api';
+import { call, mediaURL, thumbnailURL, usePreference } from '../api';
 import { categoriesOf, CategoryTabs, Dialog, EmptyState, Header, SearchField, Segmented, Select, showToast, Spinner, useContextMenu, useVisible, type MenuItem } from '../components';
 import { useCollectionKeys, useMarquee, useSelection } from '../selection';
 import type { AppState, ArchiveSource, LibraryItem } from '../../shared/types';
@@ -214,14 +214,22 @@ export function Thumbnail(props: { path?: string; isVideo?: boolean; className: 
   const [ref, visible] = useVisible<HTMLDivElement>();
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // 먼저 작은 그림을 씁니다. 만들 수 없으면 원본으로 그립니다.
+  const [original, setOriginal] = useState(false);
+  useEffect(() => {
+    setOriginal(false);
+    setFailed(false);
+    setLoaded(false);
+  }, [props.path]);
   const showing = visible && props.path && !failed;
+  const onError = () => (original ? setFailed(true) : setOriginal(true));
   // 그림이 다 오기 전에는 은은하게 반짝이다가, 오면 부드럽게 나타납니다.
   return (
     <div ref={ref} className={`${props.className} ${showing && !loaded ? 'loading' : ''}`}>
       {showing ? (
-        props.isVideo
-          ? <video className={loaded ? 'loaded' : ''} src={mediaURL(props.path!) + '#t=0.1'} preload="metadata" muted onLoadedData={() => setLoaded(true)} onError={() => setFailed(true)} />
-          : <img className={loaded ? 'loaded' : ''} src={mediaURL(props.path!)} loading="lazy" decoding="async" alt="" onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />
+        props.isVideo && original
+          ? <video className={loaded ? 'loaded' : ''} src={mediaURL(props.path!) + '#t=0.1'} preload="metadata" muted onLoadedData={() => setLoaded(true)} onError={onError} />
+          : <img key={String(original)} className={loaded ? 'loaded' : ''} src={original ? mediaURL(props.path!) : thumbnailURL(props.path!, props.isVideo)} loading="lazy" decoding="async" alt="" onLoad={() => setLoaded(true)} onError={onError} />
       ) : props.fallback}
       {props.isVideo && <span className="play"><Play size={18} fill="currentColor" /></span>}
     </div>

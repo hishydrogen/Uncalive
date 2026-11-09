@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, ExternalLink, FolderOpen, Images, RotateCw, X, ZoomIn, ZoomOut } from 'lucide-react';
-import { call, mediaURL } from '../api';
+import { call, mediaURL, setLightboxOpen } from '../api';
 import { categoriesOf, CategoryTabs, EmptyState, Header, SearchField, Segmented, Select, showToast, useContextMenu } from '../components';
 import type { AppState, ArchiveSource, LibraryItem, LibraryMedia } from '../../shared/types';
 import { channelsOf, SourcePicker, Thumbnail } from './LibraryView';
@@ -150,6 +150,10 @@ function Lightbox(props: { media: Media[]; index: number; onIndex: (index: numbe
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [smooth, setSmooth] = useState(false);
   const drag = useRef<{ x: number; y: number; ox: number; oy: number; moved: boolean }>(undefined);
+  useEffect(() => {
+    setLightboxOpen(true);
+    return () => setLightboxOpen(false);
+  }, []);
 
   const apply = (next: { zoom?: number; rotation?: number; offset?: { x: number; y: number } }, animated = true) => {
     setSmooth(animated);
@@ -251,6 +255,8 @@ function Lightbox(props: { media: Media[]; index: number; onIndex: (index: numbe
         <button className="plain" title="폴더에서 보기" onClick={() => void call('revealFile', file.path)}><FolderOpen size={16} /></button>
         <button className="plain" title="닫기" onClick={props.onClose}><X size={18} /></button>
       </div>
+      {/* 사진을 확대해도 위 막대 아래로만 보입니다. 막대를 덮지 않으니 막대를 끌어 창을 옮길 수 있습니다. */}
+      <div className="lightbox-view" onMouseDown={(event) => { if (event.target === event.currentTarget) props.onClose(); }}>
       <button className="lightbox-nav left" aria-label="이전" onClick={() => move(-1)}><ChevronLeft size={28} /></button>
       <div className="lightbox-stage" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
         onClick={(event) => { if (event.target === event.currentTarget && !moved.current) props.onClose(); }}>
@@ -261,6 +267,7 @@ function Lightbox(props: { media: Media[]; index: number; onIndex: (index: numbe
           : <img key={file.path} {...mediaProps} alt="" />}
       </div>
       <button className="lightbox-nav right" aria-label="다음" onClick={() => move(1)}><ChevronRight size={28} /></button>
+      </div>
     </div>,
     document.body,
   );

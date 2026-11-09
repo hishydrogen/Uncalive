@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Archive, ArrowDownCircle, Bookmark, Images, Link2, Settings, UserCircle2 } from 'lucide-react';
-import { call, useAppState } from './api';
+import { call, useAppState, watchWindowState } from './api';
 import { Spinner, ToastHost } from './components';
 import { DownloadView } from './views/DownloadView';
 import { EntryListView, initialFilters, type Filters } from './views/EntryListView';
@@ -9,6 +9,7 @@ import { LibraryView } from './views/LibraryView';
 import { SettingsView } from './views/SettingsView';
 import { TermsDialog } from './views/TermsDialog';
 import type { AppState, Section } from '../shared/types';
+import appIcon from '../../resources/icon.svg';
 
 export function App() {
   const state = useAppState();
@@ -18,6 +19,7 @@ export function App() {
   useEffect(() => {
     if (state?.platform) document.documentElement.classList.add(`platform-${state.platform}`);
   }, [state?.platform]);
+  useEffect(() => watchWindowState(), []);
   if (!state) return <Spinner label="불러오는 중입니다" />;
 
   return (
@@ -68,6 +70,13 @@ function Sidebar({ state }: { state: AppState }) {
   );
   return (
     <aside className="sidebar">
+      {/* Windows는 제목 표시줄을 없앴으므로, 다른 Windows 11 앱처럼 왼쪽 위에 앱 이름을 둡니다. */}
+      {state.platform === 'win32' && (
+        <div className="window-title">
+          <img src={appIcon} alt="" width={16} height={16} />
+          <span>언카라이브</span>
+        </div>
+      )}
       <nav>
         <div className="nav-indicator" ref={indicator} aria-hidden />
         {item('scraps', '스크랩', <Bookmark size={17} />, state.newScrapCount)}
