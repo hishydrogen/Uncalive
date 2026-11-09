@@ -20,10 +20,9 @@
 ## 화면 미리 보기
 
 | 글 목록 및 다운로드 옵션 | 주소 추가 |
-|---|---|
+|:---:|:---:|
 | ![글 목록과 다운로드 옵션 화면](docs/screenshots/collection.png) | ![게시글 및 목록 주소 추가 창](docs/screenshots/add-address.png) |
 | 보관함 | 갤러리 |
-|---|---|
 | ![채널별로 분류된 보관함 화면](docs/screenshots/library.png) | ![내려받은 미디어를 모아 보는 갤러리 화면](docs/screenshots/gallery.png) |
 
 *스크린샷에 포함된 게시글과 이미지는 설명을 위해 제작된 예시입니다.*
