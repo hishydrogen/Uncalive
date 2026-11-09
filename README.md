@@ -2,7 +2,7 @@
   <img src="docs/icon.png" width="128" height="128" alt="언카라이브 아이콘">
 </p>
 
-<h1 align="center">언카라이브 (Uncalive)</h1>
+<h1 align="center">언카라이브</h1>
 
 <p align="center">
   아카라이브에서 스크랩한 글이나 지정한 주소의 게시글을 컴퓨터에 내려받아<br>
