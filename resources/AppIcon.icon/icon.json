@@ -75,7 +75,7 @@
         "value": 0.15
       },
       "refractivity": {
-        "enabled": true,
+        "enabled": false,
         "strength": 0.85,
         "depth": 0.7
       }
