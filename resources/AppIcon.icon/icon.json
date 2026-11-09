@@ -3,8 +3,8 @@
     {
       "value": {
         "linear-gradient": [
-          "extended-srgb:0.41569,0.36078,1.00000,1.00000",
-          "extended-srgb:0.10588,0.08235,0.56471,1.00000"
+          "extended-srgb:0.40000,0.34510,1.00000,1.00000",
+          "extended-srgb:0.10980,0.08627,0.45098,1.00000"
         ],
         "orientation": {
           "start": {
@@ -40,16 +40,16 @@
   ],
   "groups": [
     {
-      "name": "카",
+      "name": "화살표",
       "layers": [
         {
+          "name": "arrow",
+          "image-name": "arrow.svg",
           "glass": true,
-          "image-name": "ka.svg",
-          "name": "ka",
           "fill": {
             "linear-gradient": [
-              "extended-srgb:0.78824,0.94118,1.00000,1.00000",
-              "extended-srgb:0.43529,0.69020,1.00000,1.00000"
+              "extended-srgb:0.90196,0.99216,1.00000,1.00000",
+              "extended-srgb:0.13333,0.65098,0.94902,1.00000"
             ],
             "orientation": {
               "start": {
@@ -64,27 +64,75 @@
           }
         }
       ],
+      "lighting": "individual",
       "shadow": {
-        "kind": "neutral",
-        "opacity": 0.5
+        "kind": "layer-color",
+        "opacity": 0.55
       },
       "specular": true,
       "translucency": {
         "enabled": true,
-        "value": 0.35
+        "value": 0.15
+      },
+      "refractivity": {
+        "enabled": true,
+        "strength": 0.85,
+        "depth": 0.7
       }
     },
     {
-      "name": "언",
+      "name": "아카",
       "layers": [
         {
+          "name": "motif",
+          "image-name": "motif.svg",
           "glass": true,
-          "image-name": "un.svg",
-          "name": "un",
           "fill": {
             "linear-gradient": [
               "extended-srgb:1.00000,1.00000,1.00000,1.00000",
-              "extended-srgb:0.86275,0.89412,1.00000,1.00000"
+              "extended-srgb:0.88627,0.92157,1.00000,1.00000"
+            ],
+            "orientation": {
+              "start": {
+                "x": 0.5,
+                "y": 0
+              },
+              "stop": {
+                "x": 0.5,
+                "y": 1
+              }
+            }
+          }
+        },
+        {
+          "name": "top-dots",
+          "image-name": "top-dots.svg",
+          "glass": true,
+          "fill": {
+            "linear-gradient": [
+              "extended-srgb:1.00000,1.00000,1.00000,1.00000",
+              "extended-srgb:0.88627,0.92157,1.00000,1.00000"
+            ],
+            "orientation": {
+              "start": {
+                "x": 0.5,
+                "y": 0
+              },
+              "stop": {
+                "x": 0.5,
+                "y": 1
+              }
+            }
+          }
+        },
+        {
+          "name": "bottom-dots",
+          "image-name": "bottom-dots.svg",
+          "glass": true,
+          "fill": {
+            "linear-gradient": [
+              "extended-srgb:1.00000,1.00000,1.00000,1.00000",
+              "extended-srgb:0.88627,0.92157,1.00000,1.00000"
             ],
             "orientation": {
               "start": {
@@ -99,6 +147,7 @@
           }
         }
       ],
+      "lighting": "individual",
       "shadow": {
         "kind": "neutral",
         "opacity": 0.5
@@ -106,7 +155,12 @@
       "specular": true,
       "translucency": {
         "enabled": true,
-        "value": 0.35
+        "value": 0.2
+      },
+      "refractivity": {
+        "enabled": true,
+        "strength": 0.75,
+        "depth": 0.6
       }
     }
   ],

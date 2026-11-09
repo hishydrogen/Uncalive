@@ -33,8 +33,9 @@ scripts/
   build-main.mjs                 메인 프로세스와 프리로드를 한 파일로 묶기
   dev.mjs                        개발용 실행
   smoke.mjs                      빌드한 앱을 실제로 띄워 화면을 한 바퀴 확인
-  make-icons.mjs                 resources/icon.svg에서 운영체제별 아이콘 그림 만들기
-resources/                       아이콘(icon.svg가 원본)
+  icon-shapes.mjs                아이콘 도형과 색(모든 아이콘의 원본)
+  make-icons.mjs                 icon-shapes.mjs에서 운영체제별 아이콘 그림 만들기
+resources/                       아이콘(맥은 AppIcon.icon, Windows·Linux는 icon.png)
 electron-builder.yml             설치 파일 설정
 ```
 
@@ -62,7 +63,7 @@ npx electron-builder --linux --x64 --arm64
 - **개발본과 설치본 분리**: 개발본은 앱 이름이 `Uncalive Dev`, 설정 폴더가 `Uncalive Electron Dev`, 기본 보관함이 `~/Uncalive Dev`입니다. 설치본은 설정 폴더가 `Uncalive`(Windows는 `%APPDATA%\Uncalive`, 맥은 `~/Library/Application Support/Uncalive`), 기본 보관함이 홈 폴더의 `Uncalive`입니다.
 - **시험용 격리**: `UNCALIVE_PROFILE_DIR`(설정과 로그인 세션 폴더)와 `UNCALIVE_DEFAULT_FOLDER`(기본 보관함, 절대 경로) 환경 변수를 주면 실사용 데이터와 완전히 떨어진 곳에서 실행합니다. 이때는 1.x 맥판 설정도 가져오지 않습니다. `scripts/smoke.mjs`가 이렇게 실행합니다.
 - **개발 로그**: 개발본으로 실행할 때만 운영체제의 로그 폴더(`Uncalive Dev/debug.log`)에 진행 상태를 남깁니다. 쿠키 값이나 입력값, 글 제목은 기록하지 않으며 설치본은 아무것도 남기지 않습니다.
-- **아이콘 바꾸기**: `resources/icon.svg`를 고친 뒤 `npx electron scripts/make-icons.mjs`를 실행하면 `resources/icon.png`(Windows, Linux), `resources/icon-mac.png`(맥, 여백과 그림자 포함), `docs/icon.png`(README)를 다시 만듭니다.
+- **아이콘 바꾸기**: `scripts/icon-shapes.mjs`의 도형과 색을 고친 뒤 `npx electron scripts/make-icons.mjs`를 실행하면 맥 리퀴드 글래스 아이콘의 층 그림(`resources/AppIcon.icon/Assets`), `resources/icon.svg`·`icon.png`(Windows, Linux), `docs/icon.png`(README)를 다시 만듭니다. 리퀴드 글래스의 색, 유리, 굴절 설정은 `resources/AppIcon.icon/icon.json`에 있고 Xcode의 Icon Composer로 열어 볼 수 있습니다. 명령줄로 미리 보려면 `"/Applications/Xcode.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool" resources/AppIcon.icon --export-image --output-file preview.png --platform macOS --rendition Default --width 1024 --height 1024 --scale 1 --design-generation 27`을 실행합니다(`--rendition`은 Dark, ClearLight, TintedDark 등).
 
 ## 릴리스
 
