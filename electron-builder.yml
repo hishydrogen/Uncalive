@@ -36,6 +36,10 @@ nsis:
   shortcutName: 언카라이브
   uninstallDisplayName: 언카라이브
   artifactName: Uncalive-${version}-Windows-${arch}-Setup.${ext}
+# 예전 AppImage 실행기(기본값 0.0.0)는 시스템의 libfuse2를 써야 하고, arm64용은 개발용 이름(libz.so)까지 찾아
+# 페도라 같은 배포판에서 아무 반응 없이 실행되지 않았습니다. 1.0.3은 라이브러리를 품은 정적 실행기를 씁니다.
+toolsets:
+  appimage: "1.0.3"
 linux:
   icon: resources/icon.png
   category: Network

@@ -342,6 +342,43 @@ function confirmLocalLaunch(): boolean {
   return false;
 }
 
+// AppImage의 AppRun은 사용자 네임스페이스를 쓸 수 없으면(예: Ubuntu 24.04 이후의 AppArmor 제한) 알리지 않고 --no-sandbox를 붙입니다.
+// 웹페이지를 여는 앱이므로 격리 없이 실행된다는 것을 알리고, 계속할지 고르게 합니다.
+async function confirmUnsandboxedLaunch(): Promise<boolean> {
+  if (process.platform !== 'linux' || isDev || !app.commandLine.hasSwitch('no-sandbox')) return true;
+  const marker = path.join(app.getPath('userData'), 'no-sandbox-accepted');
+  if (fs.existsSync(marker)) return true;
+  let restricted = false;
+  try {
+    restricted = fs.readFileSync('/proc/sys/kernel/apparmor_restrict_unprivileged_userns', 'utf8').trim() === '1';
+  } catch {
+    // 이 설정이 없는 배포판입니다.
+  }
+  const fix = restricted
+    ? '격리를 켜려면 터미널에서 다음 명령을 실행한 뒤 언카라이브를 다시 시작해 주세요. 이 설정은 시스템 전체에 적용되며, 재부팅하면 원래대로 돌아갑니다.\nsudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0'
+    : '격리를 켜려면 이 시스템에서 일반 사용자가 사용자 네임스페이스(user namespace)를 쓸 수 있도록 설정해야 합니다.';
+  const { response, checkboxChecked } = await dialog.showMessageBox({
+    type: 'warning',
+    title: appName,
+    message: '보안 격리 없이 실행됩니다',
+    detail: `이 시스템에서는 Chromium의 보안 격리(sandbox)를 쓸 수 없습니다.${restricted ? ' Ubuntu 24.04 이후의 AppArmor 설정 때문입니다.' : ''}\n\n격리 없이도 언카라이브를 쓸 수 있지만, 아카라이브 같은 웹페이지를 열 때 보안이 약해집니다.\n\n${fix}`,
+    buttons: ['종료', '격리 없이 실행'],
+    defaultId: 0,
+    cancelId: 0,
+    checkboxLabel: '다음부터 묻지 않기',
+  });
+  if (response !== 1) return false;
+  if (checkboxChecked) {
+    try {
+      fs.mkdirSync(path.dirname(marker), { recursive: true });
+      fs.writeFileSync(marker, '');
+    } catch {
+      // 기록하지 못하면 다음에 다시 묻습니다.
+    }
+  }
+  return true;
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -369,7 +406,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('activate', () => showMainWindow());
 
   void app.whenReady().then(async () => {
-    if (!confirmLocalLaunch()) {
+    if (!confirmLocalLaunch() || !(await confirmUnsandboxedLaunch())) {
       quitting = true;
       app.quit();
       return;
