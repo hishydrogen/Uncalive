@@ -20,7 +20,8 @@ export function GalleryView({ state }: { state: AppState }) {
   const [category, setCategory] = useState<string>();
   const [source, setSource] = useState<ArchiveSource>();
   const [search, setSearch] = useState('');
-  const [preview, setPreview] = useState<number>();
+  // 크게 보는 파일은 순서가 아니라 경로로 기억합니다. 받는 중에 새 파일이 앞에 끼어들어도 보던 파일이 그대로 남습니다.
+  const [preview, setPreview] = useState<string>();
   const menu = useContextMenu();
 
   useEffect(() => { setCategory(undefined); }, [channel]);
@@ -67,9 +68,11 @@ export function GalleryView({ state }: { state: AppState }) {
     if (ids.length > 5) showToast('한 번에 5개까지만 열 수 있습니다');
     for (const id of ids.slice(0, 5)) void call('openPost', id);
   };
+  const previewIndex = preview === undefined ? -1 : paths.indexOf(preview);
+  // 보던 파일이 목록에서 빠지면(지우거나 거르기를 바꾸면) 크게 보기를 닫습니다.
+  useEffect(() => { if (preview !== undefined && previewIndex < 0) setPreview(undefined); }, [preview, previewIndex]);
   const openAt = (path: string) => {
-    const index = paths.indexOf(path);
-    if (index >= 0) setPreview(index);
+    if (paths.includes(path)) setPreview(path);
   };
   const marquee = useMarquee(selection, isMac, { onOpen: openAt });
   useCollectionKeys(selection, marquee.columns, isMac, { onOpen: (ids) => openAt(ids[0]), onSpace: openAt, onCopy: (ids) => copyFiles(ids) });
@@ -78,7 +81,7 @@ export function GalleryView({ state }: { state: AppState }) {
   }, [selection.cursor]);
   // 크게 보기를 닫으면 마지막으로 보던 파일을 지금 항목으로 삼습니다.
   const closePreview = () => {
-    if (preview !== undefined && media[preview]) selection.click(media[preview].path, { toggle: false, range: false });
+    if (preview !== undefined && previewIndex >= 0) selection.click(preview, { toggle: false, range: false });
     setPreview(undefined);
   };
 
@@ -126,7 +129,7 @@ export function GalleryView({ state }: { state: AppState }) {
           </div>
         </div>
       )}
-      {preview !== undefined && media[preview] && <Lightbox media={media} index={preview} onIndex={setPreview} onClose={closePreview} />}
+      {previewIndex >= 0 && <Lightbox media={media} index={previewIndex} onIndex={(index) => setPreview(media[index]?.path)} onClose={closePreview} />}
       {menu.element}
     </div>
   );
@@ -169,13 +172,20 @@ function Lightbox(props: { media: Media[]; index: number; onIndex: (index: numbe
   };
 
   useEffect(() => {
+    // 크게 보기의 키는 갤러리 목록보다 먼저 받아서, 뒤에 있는 목록이 함께 움직이지 않게 합니다.
+    const own = (event: KeyboardEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' || event.key === ' ') {
-        event.preventDefault();
+        own(event);
         props.onClose();
       } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        own(event);
         move(1);
       } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+        own(event);
         move(-1);
       } else if (event.key === '+' || event.key === '=') {
         apply({ zoom: zoom * 1.25 });
@@ -192,8 +202,8 @@ function Lightbox(props: { media: Media[]; index: number; onIndex: (index: numbe
         apply({ rotation: rotation + (event.shiftKey ? -90 : 90) });
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   });
 
   const onWheel = (event: React.WheelEvent) => {
@@ -244,7 +254,11 @@ function Lightbox(props: { media: Media[]; index: number; onIndex: (index: numbe
       <button className="lightbox-nav left" aria-label="이전" onClick={() => move(-1)}><ChevronLeft size={28} /></button>
       <div className="lightbox-stage" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
         onClick={(event) => { if (event.target === event.currentTarget && !moved.current) props.onClose(); }}>
-        {file.isVideo ? <video key={file.path} {...mediaProps} controls autoPlay /> : <img key={file.path} {...mediaProps} alt="" />}
+        {file.isVideo
+          // 재생 막대를 누르면 키보드가 동영상으로 넘어가 방향키와 Esc가 크게 보기에 오지 않았습니다.
+          // 마우스로는 그대로 조작하되 키보드는 동영상에 머물지 않게 합니다.
+          ? <video key={file.path} {...mediaProps} controls autoPlay onFocus={(event) => event.currentTarget.blur()} />
+          : <img key={file.path} {...mediaProps} alt="" />}
       </div>
       <button className="lightbox-nav right" aria-label="다음" onClick={() => move(1)}><ChevronRight size={28} /></button>
     </div>,

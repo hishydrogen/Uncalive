@@ -31,7 +31,9 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
-  shortcutName: 언카라이브
+  # 바로가기 파일 이름을 한글로 두면 아이콘이 없고 눌러도 실행되지 않는 바로가기가 생겼습니다.
+  # 파일 이름은 영문으로 두고, 바탕 화면과 시작 메뉴에 보이는 이름만 installer.nsh에서 한글로 바꿉니다.
+  shortcutName: Uncalive
   uninstallDisplayName: 언카라이브
   artifactName: Uncalive-${version}-Windows-${arch}-Setup.${ext}
 linux:

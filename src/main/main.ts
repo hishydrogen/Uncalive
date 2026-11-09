@@ -1,6 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, protocol, shell, Tray, type MenuItemConstructorOptions } from 'electron';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import { pathToFileURL } from 'node:url';
 import type { CommandName } from '../shared/types';
 import { BrowserController } from './browser';
@@ -199,7 +201,50 @@ function registerMediaProtocol(): void {
     const relative = url.pathname.slice(1).split('/').map((segment) => decodeURIComponent(segment)).join('/');
     const target = model.resolveLibraryPath(relative);
     if (!target) return new Response('없는 파일입니다.', { status: 404 });
-    return net.fetch(pathToFileURL(target).toString(), { headers: request.headers });
+    const range = request.headers.get('range');
+    if (!range) return net.fetch(pathToFileURL(target).toString(), { headers: request.headers });
+    return rangeResponse(target, range);
+  });
+}
+
+const mediaTypes: Record<string, string> = {
+  '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.mkv': 'video/x-matroska',
+  '.gif': 'image/gif', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.avif': 'image/avif',
+};
+
+/**
+ * 동영상의 일부만 달라는 요청(Range)에 답합니다. file:// 주소는 이 요청을 무시하고 늘 처음부터 보내서,
+ * 동영상 재생 막대로 시간을 옮길 수 없었습니다.
+ */
+async function rangeResponse(target: string, header: string): Promise<Response> {
+  let size: number;
+  try {
+    size = (await fs.promises.stat(target)).size;
+  } catch {
+    return new Response('없는 파일입니다.', { status: 404 });
+  }
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  let start = match?.[1] ? Number(match[1]) : NaN;
+  let end = match?.[2] ? Number(match[2]) : NaN;
+  if (Number.isNaN(start) && !Number.isNaN(end)) {
+    // bytes=-500 은 끝에서 500바이트입니다.
+    start = Math.max(0, size - end);
+    end = size - 1;
+  }
+  if (Number.isNaN(start)) start = 0;
+  if (Number.isNaN(end) || end >= size) end = size - 1;
+  if (!match || start > end || start >= size) {
+    return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
+  }
+  const stream = fs.createReadStream(target, { start, end });
+  return new Response(Readable.toWeb(stream) as ReadableStream, {
+    status: 206,
+    headers: {
+      'Content-Type': mediaTypes[path.extname(target).toLowerCase()] ?? 'application/octet-stream',
+      'Content-Length': String(end - start + 1),
+      'Content-Range': `bytes ${start}-${end}/${size}`,
+      'Accept-Ranges': 'bytes',
+    },
   });
 }
 
