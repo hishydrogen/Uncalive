@@ -27,9 +27,9 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 const commands = new Set<CommandName>([
-  'setSection', 'signIn', 'signOut', 'refreshScraps', 'stopLoading', 'addTargets', 'clearCollection', 'removeFromCollection',
+  'setSection', 'signIn', 'signOut', 'refreshScraps', 'reloadAllScraps', 'stopLoading', 'addTargets', 'clearCollection', 'removeFromCollection',
   'removeCheckedFromCollection', 'removeFromCollectionMany', 'undoRemoveFromCollection', 'setSelection', 'setChecked', 'checkUnsaved', 'startDownload', 'togglePause', 'cancelDownload', 'clearJob', 'exportCSV',
-  'setOptions', 'setUseAccountFolder', 'setAutoCheckHours', 'setAutoDownloadNew', 'setTheme', 'setNotifications', 'acceptTerms', 'quit', 'testNotification', 'checkNow', 'chooseDestination', 'openPost',
+  'setOptions', 'setAutoCheckHours', 'setAutoDownloadNew', 'setTheme', 'setNotifications', 'acceptTerms', 'dismissNotice', 'openLegacyFolder', 'quit', 'testNotification', 'checkNow', 'chooseDestination', 'openPost',
   'revealPost', 'revealFile', 'openLibraryFolder', 'reloadLibrary', 'searchLibrary', 'redownloadPosts', 'trashPosts', 'copyFiles', 'exportFiles',
 ]);
 
@@ -173,7 +173,8 @@ function buildMenu(): void {
     {
       label: '파일',
       submenu: [
-        { label: '스크랩 목록 새로고침', accelerator: 'CmdOrCtrl+R', click: () => model.refreshScraps() },
+        { label: '새 스크랩 확인', accelerator: 'CmdOrCtrl+R', click: () => model.refreshScraps() },
+        { label: '스크랩 목록 전체 다시 불러오기', accelerator: 'CmdOrCtrl+Shift+R', click: () => model.reloadAllScraps() },
         ...(isMac ? [] : [settings]),
         { type: 'separator' },
         { label: '보관함 폴더 열기', click: () => model.openLibraryFolder() },

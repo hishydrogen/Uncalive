@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, Bookmark, CheckCircle2, Circle, Clock, Download, Link2, Loader2, Plus, RefreshCw, SlidersHorizontal, Square, Trash2, UserCircle2, X } from 'lucide-react';
-import { call, formatShortDate, qualityTitles, usePreference } from '../api';
+import { call, formatAgo, formatShortDate, qualityTitles, usePreference } from '../api';
 import { EmptyState, Header, SearchField, Select, showToast, Spinner, useContextMenu, usePresence } from '../components';
 import { useChecks, useMarquee, useSelection } from '../selection';
 import type { AppState, ListKind, PostStatus, ScrapEntry } from '../../shared/types';
@@ -157,9 +157,14 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
   }, [list.entries, filters, channel, state.records]);
 
   const loading = list.load.kind === 'loading';
-  const subtitle = list.load.kind === 'loading' && list.load.page > 0
-    ? `${list.load.page}${list.load.highestPage ? `/${list.load.highestPage}` : ''}페이지 불러오는 중 (${list.entries.length}개)`
-    : list.entries.length > 0 ? `${list.entries.length}개` : '';
+  const load = list.load;
+  let subtitle = list.entries.length > 0 ? `${list.entries.length}개` : '';
+  if (load.kind === 'loading' && load.mode === 'new') subtitle = '새 스크랩 확인 중…';
+  else if (load.kind === 'loading' && load.page > 0) {
+    const pages = `${load.page}${load.highestPage ? `/${load.highestPage}` : ''}페이지`;
+    // 전체를 다시 읽는 동안에는 지금 목록을 그대로 두므로 개수 대신 진행만 보여 줍니다.
+    subtitle = load.mode === 'full' && state.scrapsFullSyncAt ? `전체 목록 다시 읽는 중 (${pages})` : `${pages} 불러오는 중 (${list.entries.length}개)`;
+  } else if (isScraps && subtitle && state.scrapsFullSyncAt) subtitle += ` · 전체 확인 ${formatAgo(state.scrapsFullSyncAt)}`;
   const jobActive = state.job !== undefined && ['running', 'paused', 'waitingForChallenge'].includes(state.job.status);
 
   const isMac = state.platform === 'darwin';
@@ -434,7 +439,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
         {loading ? (
           <button onClick={() => void call('stopLoading')}><Square size={14} /> 중지</button>
         ) : isScraps ? (
-          <button onClick={() => void call('refreshScraps')} disabled={state.isBusy || state.login === 'loggedOut'} title={`새로고침 (${isMac ? '⌘R' : 'Ctrl+R'})`}><RefreshCw size={14} /> 새로고침</button>
+          <button onClick={() => void call('refreshScraps')} disabled={state.isBusy || state.login === 'loggedOut'} title={`새 스크랩 확인 (${isMac ? '⌘R' : 'Ctrl+R'})\n앞쪽부터 읽다가 이미 있는 글이 나오면 멈춥니다. 스크랩을 해제한 글까지 반영하려면 설정에서 '전체 다시 불러오기'를 눌러 주세요(${isMac ? '⇧⌘R' : 'Ctrl+Shift+R'}).`}><RefreshCw size={14} /> 새로고침</button>
         ) : (
           <>
             <button onClick={() => setShowAdd(true)}><Plus size={14} /> 주소 추가</button>

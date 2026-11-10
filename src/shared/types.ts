@@ -10,7 +10,8 @@ export type PostStatus = 'new' | 'incomplete' | 'saved';
 
 export type ListLoad =
   | { kind: 'idle' }
-  | { kind: 'loading'; page: number; highestPage?: number }
+  /** mode가 new이면 앞쪽만 읽어 새 글을 찾는 중이고, full이면 전체를 읽는 중입니다. */
+  | { kind: 'loading'; page: number; highestPage?: number; mode?: 'new' | 'full' }
   | { kind: 'failed'; message: string };
 
 export interface ListState {
@@ -83,6 +84,14 @@ export interface LibraryItem {
   hasPage: boolean;
 }
 
+/** 새 버전을 처음 열었을 때 한 번 보여 주는 안내입니다. */
+export interface AppNotice {
+  /** 함께 쓰던 보관함을 옮긴 폴더의 전체 경로입니다. 옮긴 것이 없으면 비어 있습니다. */
+  legacyFolder?: string;
+  /** 옮기지 못한 항목이 있어 다음에 앱을 열 때 다시 시도합니다. */
+  incomplete?: boolean;
+}
+
 export interface AppState {
   platform: NodeJS.Platform;
   arch: string;
@@ -93,7 +102,6 @@ export interface AppState {
   username?: string;
   /** 로그인 아이디입니다. 계정마다 보관함을 나누는 기준입니다. */
   loginID?: string;
-  useAccountFolder: boolean;
   options: DownloadOptions;
   libraryRoot: string;
   scraps: ListState;
@@ -103,10 +111,13 @@ export interface AppState {
   isBusy: boolean;
   newScrapCount: number;
   lastCheck?: number;
+  /** 스크랩 목록을 끝까지 다 읽은 때입니다. 그 뒤로는 새 글만 더합니다. */
+  scrapsFullSyncAt?: number;
   autoCheckHours: number;
   autoDownloadNew: boolean;
   theme: 'system' | 'light' | 'dark';
   notifications: boolean;
+  notice?: AppNotice;
   /** 처음 실행 안내에 동의했는지입니다. */
   termsAccepted: boolean;
   library: LibraryItem[];
@@ -119,6 +130,7 @@ export interface Commands {
   signIn(): void;
   signOut(): void;
   refreshScraps(): void;
+  reloadAllScraps(): void;
   stopLoading(): void;
   addTargets(text: string, scope: ListScope): void;
   clearCollection(): void;
@@ -135,12 +147,13 @@ export interface Commands {
   clearJob(): void;
   exportCSV(kind: ListKind, ids: string[]): void;
   setOptions(options: DownloadOptions): void;
-  setUseAccountFolder(value: boolean): void;
   setAutoCheckHours(hours: number): void;
   setAutoDownloadNew(value: boolean): void;
   setTheme(theme: 'system' | 'light' | 'dark'): void;
   setNotifications(value: boolean): void;
   acceptTerms(): void;
+  dismissNotice(): void;
+  openLegacyFolder(): void;
   testNotification(): void;
   quit(): void;
   checkNow(): void;

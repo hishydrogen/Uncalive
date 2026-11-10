@@ -107,6 +107,16 @@ export function formatShortDate(iso?: string): string {
   return `${pad(date.getFullYear() % 100)}.${pad(date.getMonth() + 1)}.${pad(date.getDate())}`;
 }
 
+/** '방금', '5분 전', '3시간 전', '2일 전'처럼 지난 시간을 짧게 씁니다. */
+export function formatAgo(time: number, now = Date.now()): string {
+  const minutes = Math.floor((now - time) / 60_000);
+  if (minutes < 1) return '방금';
+  if (minutes < 60) return `${minutes}분 전`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  return `${Math.floor(hours / 24)}일 전`;
+}
+
 export const qualityTitles = { original: '원본', balanced: '균형', display: '웹 표시용' } as const;
 
 export const qualityDetails = {
