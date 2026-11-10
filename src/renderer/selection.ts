@@ -166,7 +166,14 @@ export function useMarquee(selection: Selection, isMac: boolean, options: { igno
       const rect = scroller.getBoundingClientRect();
       return { x: x - rect.left + scroller.scrollLeft, y: y - rect.top + scroller.scrollTop };
     };
-    const start = toContent(event.clientX, event.clientY);
+    // 상자는 스크롤 영역 안에 그려지므로, 내용 밖으로 커지면 스크롤할 높이가 늘고 자동 스크롤이 끝없이 이어집니다.
+    // 끌기를 시작할 때의 내용 크기 안으로 상자를 묶어 둡니다.
+    const limit = { width: scroller.scrollWidth, height: scroller.scrollHeight };
+    const clamp = (point: { x: number; y: number }) => ({
+      x: Math.min(Math.max(point.x, 0), limit.width),
+      y: Math.min(Math.max(point.y, 0), limit.height),
+    });
+    const start = clamp(toContent(event.clientX, event.clientY));
     let pointer = { x: event.clientX, y: event.clientY };
     let moved = false;
     let frame = 0;
@@ -177,9 +184,9 @@ export function useMarquee(selection: Selection, isMac: boolean, options: { igno
       const edge = 36;
       if (pointer.y < rect.top + edge) scroller.scrollTop -= Math.ceil((rect.top + edge - pointer.y) / 3);
       else if (pointer.y > rect.bottom - edge) scroller.scrollTop += Math.ceil((pointer.y - (rect.bottom - edge)) / 3);
-      const now = toContent(pointer.x, pointer.y);
+      const now = clamp(toContent(pointer.x, pointer.y));
       const area = { left: Math.min(start.x, now.x), right: Math.max(start.x, now.x), top: Math.min(start.y, now.y), bottom: Math.max(start.y, now.y) };
-      setBox({ top: area.top, left: Math.max(0, area.left), width: area.right - area.left, height: area.bottom - area.top });
+      setBox({ top: area.top, left: area.left, width: area.right - area.left, height: area.bottom - area.top });
       const next = new Set(base);
       items.current.forEach((item, id) => {
         const r = item.getBoundingClientRect();

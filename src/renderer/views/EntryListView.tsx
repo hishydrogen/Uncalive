@@ -140,17 +140,21 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
     return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   }, [list.entries]);
 
+  // 고른 채널이 지금 목록에 없으면(계정을 바꾼 뒤 등) 선택 상자는 '모든 채널'로 보이는데 목록은 그 채널로 걸러져 비어 버렸습니다.
+  // 화면에 보이는 값과 거르는 값을 같게 둡니다.
+  const channel = channels.some((item) => item.id === filters.channel) ? filters.channel : '';
+
   const visible = useMemo(() => {
     const query = filters.search.toLowerCase();
     return list.entries.filter((entry) => {
-      if (filters.channel && entry.channel !== filters.channel) return false;
+      if (channel && entry.channel !== channel) return false;
       if (filters.status !== 'all' && statusOf(state, entry) !== filters.status) return false;
       if (!matchesPeriod(filters, entry)) return false;
       if (query === '') return true;
       return title(entry).toLowerCase().includes(query) || (entry.author ?? '').toLowerCase().includes(query);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list.entries, filters, state.records]);
+  }, [list.entries, filters, channel, state.records]);
 
   const loading = list.load.kind === 'loading';
   const subtitle = list.load.kind === 'loading' && list.load.page > 0
@@ -306,7 +310,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
     body = (
       <div className="list-body">
         <div className="filter-bar">
-          <Select label="채널" value={filters.channel} onChange={(channel) => set({ channel })} options={[{ value: '', label: '모든 채널' }, ...channels.map((channel) => ({ value: channel.id, label: channel.name }))]} />
+          <Select label="채널" value={channel}onChange={(channel) => set({ channel })} options={[{ value: '', label: '모든 채널' }, ...channels.map((channel) => ({ value: channel.id, label: channel.name }))]} />
           <Select<StatusFilter> label="상태" value={filters.status} onChange={(status) => set({ status })} options={[
             { value: 'all', label: '모든 상태' }, { value: 'new', label: '안 받음' }, { value: 'incomplete', label: '일부만 받음' }, { value: 'saved', label: '받음' },
           ]} />

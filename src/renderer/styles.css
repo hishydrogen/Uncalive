@@ -18,6 +18,10 @@
   --accent-soft: #e9e7fd;
   --hover: rgba(23, 23, 40, 0.045);
   --pressed: rgba(23, 23, 40, 0.085);
+  /* 고른 항목(사이드바, 켜진 단추)과 단추 묶음에서 고른 칸의 바탕입니다. 모두 무채색입니다. */
+  --fill-selected: rgba(23, 23, 40, 0.11);
+  --fill-pressed: rgba(23, 23, 40, 0.15);
+  --thumb: #ffffff;
   --danger: #d1342a;
   --warning: #b8650a;
   --success: #1f8a3b;
@@ -52,6 +56,10 @@
     --accent-soft: #2c2959;
     --hover: rgba(255, 255, 255, 0.055);
     --pressed: rgba(255, 255, 255, 0.1);
+    --fill-selected: rgba(255, 255, 255, 0.14);
+    --fill-pressed: rgba(255, 255, 255, 0.19);
+    /* 카드 바탕(--surface)과 같은 색이면 고른 칸이 보이지 않으므로 한 단계 밝게 띄웁니다. */
+    --thumb: #4a4a55;
     --danger: #ff8278;
     --warning: #f2b456;
     --success: #6fd38a;
@@ -67,6 +75,8 @@ body {
   background: var(--bg); color: var(--text);
   font: 14px/1.5 var(--font); letter-spacing: -0.005em; font-feature-settings: "ss05", "tnum" 0;
   -webkit-font-smoothing: antialiased; overflow: hidden; user-select: none;
+  /* 한글을 글자 중간이 아니라 어절 단위로 줄바꿈합니다. 띄어쓰기 없이 긴 글자(주소 등)는 넘치지 않게 그 안에서 끊습니다. */
+  word-break: keep-all; overflow-wrap: break-word;
 }
 h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.015em; }
 p { margin: 0; }
@@ -102,7 +112,9 @@ button.link { border: none; background: none; box-shadow: none; height: auto; pa
 button.link:hover:not(:disabled) { background: none; text-decoration: underline; text-underline-offset: 2px; }
 button.link:active:not(:disabled) { transform: none; background: none; }
 button.icon { padding: 0 8px; }
-button.selected { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
+/* 켜진 단추는 무채색으로 진하게 칠합니다. 누른 뒤 커서가 그 자리에 있어도 바로 켜진 모습이 보이도록 마우스를 올린 모습보다 앞섭니다. */
+button.selected, button.selected:hover:not(:disabled) { background: var(--fill-selected); border-color: var(--line-strong); color: var(--text); }
+button.selected:active:not(:disabled) { background: var(--fill-pressed); }
 
 select, input[type="date"], input.number, .search {
   height: 30px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); padding: 0 8px; box-shadow: var(--shadow-sm);
@@ -125,10 +137,12 @@ textarea { width: 100%; border: 1px solid var(--line-strong); border-radius: var
 .search input:focus-visible { box-shadow: none; }
 
 .segmented { position: relative; display: inline-flex; padding: 2px; border-radius: 8px; background: color-mix(in srgb, var(--text) 6%, transparent); gap: 2px; }
-.segmented-thumb { position: absolute; top: 2px; bottom: 2px; left: 0; width: 0; opacity: 0; border-radius: 6px; background: var(--surface); box-shadow: var(--shadow-sm), 0 0 0 .5px var(--line-strong); transition: transform var(--slow) var(--ease), width var(--slow) var(--ease); pointer-events: none; }
+.segmented-thumb { position: absolute; top: 2px; bottom: 2px; left: 0; width: 0; opacity: 0; border-radius: 6px; background: var(--thumb); box-shadow: var(--shadow-sm), 0 0 0 .5px var(--line-strong); transition: transform var(--slow) var(--ease), width var(--slow) var(--ease); pointer-events: none; }
 .segmented button { position: relative; z-index: 1; height: 26px; border: none; background: none; box-shadow: none; padding: 0 11px; border-radius: 6px; color: var(--muted); transition: color var(--base) var(--ease); }
 .segmented button:hover:not(:disabled) { background: none; color: var(--text); }
 .segmented button:active:not(:disabled) { background: none; transform: none; }
+/* 칸은 손을 뗄 때 바뀝니다. 누르고 있는 동안에는 그 칸에 옅은 바탕만 비춥니다. */
+.segmented button:active:not(:disabled):not(.selected) { background: var(--hover); }
 .segmented button.selected { color: var(--text); font-weight: 650; }
 .card .segmented, fieldset.group .segmented { display: flex; }
 .card .segmented button, fieldset.group .segmented button { flex: 1; justify-content: center; }
@@ -176,17 +190,17 @@ input[type="checkbox"]:not([role="switch"]):hover:not(:checked) { border-color: 
 .app { display: flex; height: 100%; }
 .sidebar { width: 208px; flex: none; display: flex; flex-direction: column; background: var(--sidebar); border-right: 1px solid var(--line); padding: 12px 10px; }
 .sidebar nav { display: flex; flex-direction: column; gap: 2px; flex: 1; position: relative; }
-.nav-indicator { position: absolute; left: 0; right: 0; top: 0; height: 36px; border-radius: 8px; background: color-mix(in srgb, var(--text) 8%, transparent); transition: transform var(--slow) var(--ease), height var(--slow) var(--ease); pointer-events: none; }
+.nav-indicator { position: absolute; left: 0; right: 0; top: 0; height: 36px; border-radius: 8px; background: var(--fill-selected); transition: transform var(--slow) var(--ease), height var(--slow) var(--ease); pointer-events: none; }
 .nav-item { height: 36px; border: none; background: none; box-shadow: none; justify-content: flex-start; gap: 10px; padding: 0 10px; position: relative; border-radius: 8px; color: var(--muted); font-weight: 500; z-index: 1; }
 .nav-item svg { transition: color var(--fast) var(--ease), transform var(--base) var(--spring); }
 .nav-item:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 4%, transparent); color: var(--text); }
 .nav-item:active:not(:disabled) { transform: none; }
 .nav-item:active:not(:disabled) svg { transform: scale(.9); }
-.nav-item.selected { color: var(--text); font-weight: 650; }
-.nav-item.selected svg { color: var(--accent); }
+/* 고른 항목의 바탕은 .nav-indicator가 그립니다. 단추 자체는 칠하지 않아야 마우스를 올려도 바탕이 바뀌지 않습니다. */
+.nav-item.selected, .nav-item.selected:hover:not(:disabled) { background: none; border-color: transparent; color: var(--text); font-weight: 650; }
 .nav-item span:first-of-type { flex: 1; text-align: left; }
 .badge { font-size: 11px; padding: 1px 7px; border-radius: 9px; background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--muted); font-weight: 650; font-variant-numeric: tabular-nums; }
-.nav-item.selected .badge { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.nav-item.selected .badge { background: color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); }
 .nav-divider { height: 1px; background: var(--line); margin: 8px 6px; }
 .account { display: flex; align-items: center; gap: 10px; padding: 12px 6px 2px; border-top: 1px solid var(--line); }
 .account > div { display: flex; flex-direction: column; min-width: 0; }
@@ -222,7 +236,8 @@ html:has(.material-vibrancy), html:has(.material-vibrancy) body, html:has(.mater
 
 .empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 32px; text-align: center; color: var(--muted); animation: screen-in var(--slow) var(--ease) backwards; }
 .empty h2 { color: var(--text); font-size: 18px; }
-.empty p { max-width: 460px; line-height: 1.6; }
+/* 줄 길이를 고르게 맞춰, 끝 줄에 한두 글자만 남지 않게 합니다. */
+.empty p { max-width: 460px; line-height: 1.6; text-wrap: balance; }
 .empty-icon { color: var(--accent); width: 76px; height: 76px; border-radius: 22px; display: grid; place-content: center; background: var(--accent-soft); margin-bottom: 6px; }
 .empty-icon svg { width: 34px; height: 34px; }
 .empty-actions { display: flex; gap: 8px; margin-top: 8px; }
@@ -329,7 +344,7 @@ progress:indeterminate { background: linear-gradient(90deg, transparent 0%, var(
 .category-tabs button { border: none; background: none; box-shadow: none; border-radius: 0; height: 34px; color: var(--muted); border-bottom: 2px solid transparent; transition: color var(--fast) var(--ease), border-color var(--base) var(--ease); }
 .category-tabs button:hover:not(:disabled) { background: none; color: var(--text); }
 .category-tabs button:active:not(:disabled) { transform: none; background: none; }
-.category-tabs button.selected { color: var(--text); font-weight: 650; border-bottom-color: var(--accent); }
+.category-tabs button.selected, .category-tabs button.selected:hover:not(:disabled) { background: none; color: var(--text); font-weight: 650; border-bottom-color: var(--accent); }
 .group-section { border-bottom: 1px solid var(--line); }
 .group-header { position: sticky; top: 0; z-index: 1; width: 100%; justify-content: flex-start; border: none; box-shadow: none; border-radius: 0; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(12px); height: 40px; padding: 0 22px; }
 .group-header:active:not(:disabled) { transform: none; }

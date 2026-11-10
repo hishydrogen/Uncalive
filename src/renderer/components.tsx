@@ -23,7 +23,7 @@ export function Spinner(props: { label?: string }) {
 }
 
 /**
- * 여럿 중 하나를 고르는 단추 묶음입니다. 누르는 순간 바뀌고, 고른 표시가 다음 단추로 미끄러져 갑니다.
+ * 여럿 중 하나를 고르는 단추 묶음입니다. 눌렀다 손을 떼면 바뀌고(누른 채 밖으로 빠지면 취소), 고른 표시가 다음 단추로 미끄러져 갑니다.
  */
 export function Segmented<T extends string | number>(props: {
   value: T;
@@ -68,8 +68,7 @@ export function Segmented<T extends string | number>(props: {
           role="radio"
           aria-checked={option.value === props.value}
           className={option.value === props.value ? 'selected' : ''}
-          onPointerDown={(event) => { if (event.button === 0 && option.value !== props.value) props.onChange(option.value); }}
-          onClick={(event) => { if (event.detail === 0 && option.value !== props.value) props.onChange(option.value); }}
+          onClick={() => { if (option.value !== props.value) props.onChange(option.value); }}
         >
           {option.label}
         </button>
