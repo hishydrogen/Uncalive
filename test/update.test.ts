@@ -1,12 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import { interpret, isNewer, latestReleaseAPI, pickAsset, summarizeNotes } from '../src/core/update';
 
-// 실제 2.0.5 릴리스에 붙은 파일 이름과 같습니다.
+// electron-builder가 만드는 파일 이름과 같습니다. Linux의 CPU 이름은 꼴마다 다릅니다.
 const assets = [
   'Uncalive-2.1.0-Linux-arm64.AppImage', 'Uncalive-2.1.0-Linux-x86_64.AppImage',
+  'Uncalive-2.1.0-Linux-arm64.deb', 'Uncalive-2.1.0-Linux-amd64.deb',
+  'Uncalive-2.1.0-Linux-aarch64.rpm', 'Uncalive-2.1.0-Linux-x86_64.rpm',
   'Uncalive-2.1.0-macOS-arm64.dmg', 'Uncalive-2.1.0-macOS-arm64.zip',
-  'Uncalive-2.1.0-Windows-arm64-Portable.zip', 'Uncalive-2.1.0-Windows-arm64-Setup.exe',
-  'Uncalive-2.1.0-Windows-x64-Portable.zip', 'Uncalive-2.1.0-Windows-x64-Setup.exe',
+  'Uncalive-2.1.0-Windows-arm64-Setup.exe', 'Uncalive-2.1.0-Windows-x64-Setup.exe',
 ].map((name) => ({ name, size: 100, browser_download_url: `https://github.com/hishydrogen/Uncalive/releases/download/v2.1.0/${name}` }));
 
 describe('새 버전 확인', () => {
@@ -27,9 +28,12 @@ describe('새 버전 확인', () => {
     expect(pickAsset(assets, 'darwin', 'arm64')?.name).toMatch(/macOS-arm64\.dmg$/);
     expect(pickAsset(assets, 'win32', 'x64')?.name).toMatch(/Windows-x64-Setup\.exe$/);
     expect(pickAsset(assets, 'win32', 'arm64')?.name).toMatch(/Windows-arm64-Setup\.exe$/);
-    expect(pickAsset(assets, 'win32', 'x64', 'portable')?.name).toMatch(/Windows-x64-Portable\.zip$/);
     expect(pickAsset(assets, 'linux', 'x64')?.name).toMatch(/Linux-x86_64\.AppImage$/);
     expect(pickAsset(assets, 'linux', 'arm64')?.name).toMatch(/Linux-arm64\.AppImage$/);
+    expect(pickAsset(assets, 'linux', 'x64', 'deb')?.name).toMatch(/Linux-amd64\.deb$/);
+    expect(pickAsset(assets, 'linux', 'arm64', 'deb')?.name).toMatch(/Linux-arm64\.deb$/);
+    expect(pickAsset(assets, 'linux', 'x64', 'rpm')?.name).toMatch(/Linux-x86_64\.rpm$/);
+    expect(pickAsset(assets, 'linux', 'arm64', 'rpm')?.name).toMatch(/Linux-aarch64\.rpm$/);
     // 인텔 맥용은 만들지 않으므로 릴리스 페이지로 보냅니다.
     expect(pickAsset(assets, 'darwin', 'x64')).toBeUndefined();
     // GitHub 밖 주소는 쓰지 않습니다.

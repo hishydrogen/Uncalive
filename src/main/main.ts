@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import { pathToFileURL } from 'node:url';
-import { isNetworkPath } from '../core/location';
 import type { CommandName } from '../shared/types';
 import { BrowserController } from './browser';
 import { log } from './log';
@@ -315,30 +314,6 @@ async function confirmQuit(): Promise<boolean> {
   return response === 1;
 }
 
-// 포터블판을 네트워크 위치(Parallels가 맥과 같이 쓰는 바탕 화면 등)에서 실행하면 창이 뜨지 않습니다.
-// 내부 프로세스가 공유 폴더의 파일을 읽지 못하는 것으로 보입니다. 아무 표시 없이 끝나지 않도록 미리 알려 줍니다.
-function confirmLocalLaunch(): boolean {
-  if (process.platform !== 'win32' || isDev) return true;
-  let folder = path.dirname(process.execPath);
-  try {
-    // 연결된 네트워크 드라이브(Z: 등)는 실제 경로로 풀면 \\서버\공유 꼴이 됩니다.
-    folder = fs.realpathSync.native(folder);
-  } catch {
-    // 실제 경로를 못 구하면 보이는 경로로만 판단합니다.
-  }
-  if (!isNetworkPath(folder)) return true;
-  dialog.showMessageBoxSync({
-    type: 'warning',
-    title: appName,
-    message: '네트워크 경로에서는 실행할 수 없습니다',
-    detail: `현재 프로그램이 공유 폴더나 네트워크 드라이브에 있습니다.\n${folder}\n\n프로그램 폴더 전체를 이 PC의 로컬 디스크(예: C: 드라이브, 다운로드, 문서 폴더)로 옮긴 뒤 다시 실행해 주세요. Parallels에서 Mac과 공유 중인 바탕 화면이나 폴더도 네트워크 경로로 처리됩니다.`,
-    buttons: ['종료'],
-    defaultId: 0,
-    cancelId: 0,
-  });
-  return false;
-}
-
 // AppImage의 AppRun은 사용자 네임스페이스를 쓸 수 없으면(예: Ubuntu 24.04 이후의 AppArmor 제한) 알리지 않고 --no-sandbox를 붙입니다.
 // 웹페이지를 여는 앱이므로 격리 없이 실행된다는 것을 알리고, 계속할지 고르게 합니다.
 async function confirmUnsandboxedLaunch(): Promise<boolean> {
@@ -352,8 +327,8 @@ async function confirmUnsandboxedLaunch(): Promise<boolean> {
     // 이 설정이 없는 배포판입니다.
   }
   const fix = restricted
-    ? '보안 격리를 활성화하려면 터미널에서 아래 명령어를 실행한 뒤 언카라이브를 다시 시작해 주세요. 이 설정은 시스템 전체에 적용되며, 재부팅하면 원래대로 돌아갑니다.\nsudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0'
-    : '보안 격리를 활성화하려면 시스템에서 일반 사용자가 사용자 네임스페이스(user namespace)를 사용할 수 있도록 설정해야 합니다.';
+    ? '보안 격리를 활성화하려면 터미널에서 아래 명령어를 실행한 뒤 언카라이브를 다시 시작해 주세요. 이 설정은 시스템 전체에 적용되며, 재부팅하면 원래대로 돌아갑니다.\nsudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0\n\nAppImage 대신 .deb나 .rpm 설치 파일로 설치하면 이 설정 없이도 보안 격리가 켜진 상태로 실행됩니다.'
+    : '보안 격리를 활성화하려면 시스템에서 일반 사용자가 사용자 네임스페이스(user namespace)를 사용할 수 있도록 설정하거나, AppImage 대신 .deb나 .rpm 설치 파일로 설치해 주세요.';
   const { response, checkboxChecked } = await dialog.showMessageBox({
     type: 'warning',
     title: appName,
@@ -403,7 +378,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('activate', () => showMainWindow());
 
   void app.whenReady().then(async () => {
-    if (!confirmLocalLaunch() || !(await confirmUnsandboxedLaunch())) {
+    if (!(await confirmUnsandboxedLaunch())) {
       quitting = true;
       app.quit();
       return;

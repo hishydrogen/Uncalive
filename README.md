@@ -45,10 +45,10 @@
 | 운영체제 | 지원 사양 | 설치 파일 |
 |---|---|---|
 | **macOS** | macOS 13 (Ventura) 이상, **Apple Silicon 전용** | `Uncalive-<버전>-macOS-arm64.dmg` (또는 `.zip`) |
-| **Windows (x64)** | Windows 10 이상 (64비트 인텔/AMD) | `Uncalive-<버전>-Windows-x64-Setup.exe` (또는 `-Portable.zip`) |
-| **Windows (ARM)** | Windows 11 이상 (ARM64) | `Uncalive-<버전>-Windows-arm64-Setup.exe` (또는 `-Portable.zip`) |
-| **Linux (x64)** | 64비트 x86_64, glibc 2.25 이상 (시험판) | `Uncalive-<버전>-Linux-x86_64.AppImage` |
-| **Linux (ARM)** | 64비트 ARM64, glibc 2.25 이상 (시험판) | `Uncalive-<버전>-Linux-arm64.AppImage` |
+| **Windows (x64)** | Windows 10 이상 (64비트 인텔/AMD) | `Uncalive-<버전>-Windows-x64-Setup.exe` |
+| **Windows (ARM)** | Windows 11 이상 (ARM64) | `Uncalive-<버전>-Windows-arm64-Setup.exe` |
+| **Linux (x64)** | 64비트 x86_64, glibc 2.25 이상 (시험판) | `Uncalive-<버전>-Linux-amd64.deb`, `-Linux-x86_64.rpm`, `-Linux-x86_64.AppImage` |
+| **Linux (ARM)** | 64비트 ARM64, glibc 2.25 이상 (시험판) | `Uncalive-<버전>-Linux-arm64.deb`, `-Linux-aarch64.rpm`, `-Linux-arm64.AppImage` |
 
 ### macOS
 
@@ -63,20 +63,33 @@ xattr -dr com.apple.quarantine /Applications/Uncalive.app
 
 ### Windows
 
-1. `Setup.exe`를 실행해 설치하거나, 무설치 버전인 `-Portable.zip`의 압축을 풀고 `Uncalive.exe`를 실행합니다.
+1. `Setup.exe`를 실행하면 별도의 설정 없이 바로 설치되고 앱이 실행됩니다. 무설치(포터블) 버전은 2.1.0부터 제공하지 않습니다.
 2. **"Windows의 PC 보호(SmartScreen)" 창이 뜰 때**: **추가 정보**를 누른 뒤 **실행**을 누르면 정상적으로 실행됩니다.
 
 ### Linux
 
-내려받은 AppImage 파일에 실행 권한을 부여한 뒤 실행합니다.
+사용 중인 배포판에 맞는 설치 파일을 고르세요. `.deb`나 `.rpm`으로 설치하면 Ubuntu 24.04 이상에서도 Chromium 보안 격리(sandbox)가 켜진 상태로 실행되므로, 가능하면 설치 파일을 권장합니다.
+
+- **Debian, Ubuntu, Linux Mint 등**: `.deb` 파일을 내려받아 설치합니다.
+
+```bash
+sudo apt install ./Uncalive-*.deb
+```
+
+- **Fedora, openSUSE 등**: `.rpm` 파일을 내려받아 설치합니다.
+
+```bash
+sudo dnf install ./Uncalive-*.rpm
+```
+
+- **그 밖의 배포판 또는 설치 없이 실행**: AppImage 파일에 실행 권한을 부여한 뒤 실행합니다. 필요한 라이브러리가 포함되어 있어 따로 설치할 것이 없습니다.
 
 ```bash
 chmod +x Uncalive-*.AppImage
 ./Uncalive-*.AppImage
 ```
 
-- Ubuntu 22.04 이상에서 실행되지 않으면 `libfuse2`를 설치하세요 (`sudo apt install libfuse2`).
-- Ubuntu 24.04 등에서 샌드박스 오류로 창이 열리지 않으면 `--no-sandbox` 옵션을 붙여 실행해 보세요.
+> AppImage는 Ubuntu 24.04 이상 등 일부 환경에서 보안 격리 없이 실행되며, 처음 실행할 때 안내 창이 뜹니다. 보안 격리를 켜려면 `.deb`나 `.rpm`으로 설치하세요. 새 버전 알림은 설치한 형식과 같은 형식의 파일을 알려 줍니다.
 
 ## 사용 방법
 

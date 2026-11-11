@@ -31,8 +31,8 @@ export interface UpdateRelease {
 
 export type UpdateResult = ({ ok: true } & UpdateRelease) | { ok: false; error: string };
 
-/** 어떤 꼴로 설치했는지입니다. Windows는 설치판과 포터블판(zip)의 파일이 다릅니다. */
-export type InstallKind = 'installer' | 'portable';
+/** Linux에서 어떤 꼴로 설치했는지입니다. 같은 꼴의 새 파일을 알려 줍니다. */
+export type LinuxPackage = 'appimage' | 'deb' | 'rpm';
 
 /** GitHub 저장소 주소(package.json의 homepage) → 최신 릴리스 API 주소 */
 export function latestReleaseAPI(homepage: string | undefined): string | undefined {
@@ -63,14 +63,19 @@ interface RawAsset {
 
 /**
  * 운영체제와 CPU에 맞는 파일을 고릅니다. 이름은 electron-builder.yml의 artifactName 규칙을 따릅니다.
- * Uncalive-<버전>-macOS-arm64.dmg, -Windows-x64-Setup.exe, -Windows-x64-Portable.zip, -Linux-x86_64.AppImage
+ * Uncalive-<버전>-macOS-arm64.dmg, -Windows-x64-Setup.exe, -Linux-x86_64.AppImage, -Linux-amd64.deb, -Linux-x86_64.rpm
+ * Linux의 CPU 이름은 꼴마다 다릅니다(x64: AppImage·rpm은 x86_64, deb는 amd64 / arm64: rpm은 aarch64).
  */
-export function pickAsset(assets: unknown, platform: string, arch: string, kind: InstallKind = 'installer'): UpdateAsset | undefined {
+export function pickAsset(assets: unknown, platform: string, arch: string, linux: LinuxPackage = 'appimage'): UpdateAsset | undefined {
   const list = Array.isArray(assets) ? (assets as RawAsset[]) : [];
   let pattern: RegExp | undefined;
   if (platform === 'darwin') pattern = new RegExp(`-macOS-${arch}\\.dmg$`, 'i');
-  else if (platform === 'win32') pattern = new RegExp(kind === 'portable' ? `-Windows-${arch}-Portable\\.zip$` : `-Windows-${arch}-Setup\\.exe$`, 'i');
-  else if (platform === 'linux') pattern = new RegExp(`-Linux-${arch === 'x64' ? '(x64|x86_64)' : arch}\\.AppImage$`, 'i');
+  else if (platform === 'win32') pattern = new RegExp(`-Windows-${arch}-Setup\\.exe$`, 'i');
+  else if (platform === 'linux') {
+    const cpu = arch === 'x64' ? '(x64|x86_64|amd64)' : arch === 'arm64' ? '(arm64|aarch64)' : arch;
+    const extension = linux === 'deb' ? 'deb' : linux === 'rpm' ? 'rpm' : 'AppImage';
+    pattern = new RegExp(`-Linux-${cpu}\\.${extension}$`, 'i');
+  }
   const found = pattern && list.find((item) => item && pattern.test(String(item.name ?? '')));
   const url = found ? String(found.browser_download_url ?? '') : '';
   // GitHub 밖의 주소는 쓰지 않습니다.
@@ -108,7 +113,7 @@ interface RawRelease {
 }
 
 /** API 응답 → 화면에 넘길 결과 */
-export function interpret(value: unknown, current: string, platform: string, arch: string, kind: InstallKind = 'installer'): UpdateResult {
+export function interpret(value: unknown, current: string, platform: string, arch: string, linux: LinuxPackage = 'appimage'): UpdateResult {
   const release = (value && typeof value === 'object' ? value : {}) as RawRelease;
   if (release.draft || release.prerelease || !release.tag_name) return { ok: false, error: '릴리스 정보를 읽을 수 없습니다.' };
   const latest = String(release.tag_name).replace(/^v/, '');
@@ -121,7 +126,7 @@ export function interpret(value: unknown, current: string, platform: string, arc
     name: String(release.name ?? ''),
     published: String(release.published_at ?? ''),
     page: page.startsWith('https://github.com/') ? page : '',
-    asset: pickAsset(release.assets, platform, arch, kind),
+    asset: pickAsset(release.assets, platform, arch, linux),
     notes: summarizeNotes(release.body),
   };
 }

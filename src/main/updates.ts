@@ -1,7 +1,7 @@
 import { app, net, shell } from 'electron';
-import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { interpret, latestReleaseAPI, type InstallKind, type UpdateResult } from '../core/update';
+import { interpret, latestReleaseAPI, type LinuxPackage, type UpdateResult } from '../core/update';
 import type { UpdateState } from '../shared/types';
 import { log } from './log';
 import type { Settings } from './settings';
@@ -31,12 +31,18 @@ export class Updates {
   }
 
   /**
-   * Windows 설치판은 설치 폴더에 제거 프로그램(Uninstall <productName>.exe)이 있습니다. 없으면 zip으로 받은 포터블판입니다.
-   * productName은 electron-builder.yml의 영문 이름입니다.
+   * Linux에서 어떤 꼴로 설치했는지 봅니다. AppImage로 실행하면 APPIMAGE 환경 변수가 있고,
+   * deb·rpm으로 설치하면 electron-builder가 resources/package-type 파일에 꼴을 적어 둡니다.
    */
-  private get installKind(): InstallKind {
-    if (process.platform !== 'win32') return 'installer';
-    return existsSync(path.join(path.dirname(process.execPath), 'Uninstall Uncalive.exe')) ? 'installer' : 'portable';
+  private get linuxPackage(): LinuxPackage {
+    if (process.platform !== 'linux' || process.env.APPIMAGE) return 'appimage';
+    try {
+      const type = readFileSync(path.join(process.resourcesPath, 'package-type'), 'utf8').trim();
+      if (type === 'deb' || type === 'rpm') return type;
+    } catch {
+      // 파일이 없으면 AppImage로 봅니다.
+    }
+    return 'appimage';
   }
 
   schedule(): void {
@@ -86,7 +92,7 @@ export class Updates {
         });
         if (response.status === 404) return { ok: false, error: '공개된 릴리스가 없습니다.' };
         if (!response.ok) return { ok: false, error: `GitHub 응답 오류입니다. (HTTP ${response.status})` };
-        return interpret(await response.json(), app.getVersion(), process.platform, process.arch, this.installKind);
+        return interpret(await response.json(), app.getVersion(), process.platform, process.arch, this.linuxPackage);
       } catch (error) {
         return { ok: false, error: (error as Error)?.name === 'TimeoutError' ? '응답 시간이 초과되었습니다.' : '인터넷에 연결되어 있지 않거나 GitHub에 접속할 수 없습니다.' };
       }
