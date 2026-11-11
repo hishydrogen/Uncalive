@@ -55,70 +55,11 @@ function keepsRunning(): boolean {
   return model.job?.isActive === true || model.autoCheckHours > 0;
 }
 
-/**
- * Windows에서는 맥처럼 제목 표시줄을 없애고 앱 화면을 창 맨 위까지 씁니다. 최소화·최대화·닫기 단추만 운영체제가 오른쪽 위에 그립니다.
- * 단추 바탕은 그 자리에 오는 도구 막대 색과 같게 칠하고, 크게 보기를 열면 어두운 막대 색으로, 대화 상자가 뜨면 화면과 같이 어둡게 바꿉니다.
- */
-// 단추 높이를 그 자리의 막대 높이(styles.css의 .toolbar min-height, .lightbox-bar height)에 맞춰 가운데를 맞춥니다.
-// 막대 맨 아래 1px은 테두리 선이므로 비워 둡니다. 덮으면 선이 단추 자리에서 끊겨 보입니다.
-const toolbarHeight = 58 - 1;
-const lightboxBarHeight = 52 - 1;
-let lightboxOpen = false;
-/**
- * 대화 상자 바탕이 창 단추 자리를 덮은 정도입니다(0~1). 창 단추는 운영체제가 따로 칠하므로, 바탕이 서서히 어두워지는
- * 움직임(styles.css의 .dialog-backdrop: fade-in, var(--base) 180ms, var(--ease))을 같은 시간과 곡선으로 따라 칠합니다.
- * 한 번에 바꾸면 단추만 먼저 어두워져 깜빡여 보였습니다. 대화 상자는 닫힐 때 바로 사라지므로 되돌릴 때는 바로 바꿉니다.
- */
-let dimLevel = 0;
-let dimTimer: NodeJS.Timeout | undefined;
-const dimDuration = 180;
-/** var(--ease)인 cubic-bezier(0.22, 1, 0.36, 1)에 가까운 곡선입니다. */
-const easeOut = (t: number) => 1 - (1 - t) ** 5;
-
-function setDimmed(on: boolean): void {
-  if (dimTimer) clearInterval(dimTimer);
-  dimTimer = undefined;
-  if (!on || process.platform !== 'win32') {
-    dimLevel = on ? 1 : 0;
-    updateTitleBarOverlay();
-    return;
-  }
-  const start = Date.now();
-  const step = () => {
-    const t = Math.min(1, (Date.now() - start) / dimDuration);
-    dimLevel = easeOut(t);
-    updateTitleBarOverlay();
-    if (t >= 1 && dimTimer) {
-      clearInterval(dimTimer);
-      dimTimer = undefined;
-    }
-  };
-  dimTimer = setInterval(step, 16);
-  step();
-}
-
-/** 화면 위에 대화 상자 바탕(rgba(10, 10, 20, .34))을 level만큼 덮은 색입니다. */
-function dim(hex: string, level: number): string {
-  const shade = [10, 10, 20];
-  const alpha = 0.34 * level;
-  const mixed = [1, 3, 5].map((start, index) => Math.round(parseInt(hex.slice(start, start + 2), 16) * (1 - alpha) + shade[index] * alpha));
-  return '#' + mixed.map((value) => value.toString(16).padStart(2, '0')).join('');
-}
-function titleBarOverlay(): Electron.TitleBarOverlayOptions {
-  const dark = nativeTheme.shouldUseDarkColors;
-  // styles.css의 --surface-2와 --text입니다.
-  const base = lightboxOpen
-    ? { color: '#15151b', symbolColor: '#eeeeee', height: lightboxBarHeight }
-    : { color: dark ? '#212127' : '#fbfbfc', symbolColor: dark ? '#f1f1f5' : '#17171c', height: toolbarHeight };
-  return dimLevel > 0 ? { ...base, color: dim(base.color, dimLevel), symbolColor: dim(base.symbolColor, dimLevel) } : base;
-}
-function updateTitleBarOverlay(): void {
-  if (process.platform === 'win32' && mainWindow && !mainWindow.isDestroyed()) mainWindow.setTitleBarOverlay(titleBarOverlay());
-}
-
-/** 화면이 창 상태(전체 화면)에 맞춰 그릴 수 있게 알려 줍니다. */
+/** 화면이 창 상태(전체 화면, 최대화)에 맞춰 그릴 수 있게 알려 줍니다. */
 function sendWindowState(window: BrowserWindow): void {
-  if (!window.isDestroyed()) window.webContents.send('window', { fullScreen: window.isFullScreen() });
+  if (!window.isDestroyed()) {
+    window.webContents.send('window', { fullScreen: window.isFullScreen(), maximized: window.isMaximized() });
+  }
 }
 
 function createWindow(): BrowserWindow {
@@ -138,7 +79,9 @@ function createWindow(): BrowserWindow {
       vibrancy: 'sidebar' as const,
       visualEffectState: 'followWindow' as const,
     } : {}),
-    ...(process.platform === 'win32' ? { titleBarStyle: 'hidden' as const, titleBarOverlay: titleBarOverlay() } : {}),
+    // Windows에서는 운영체제의 titleBarOverlay를 쓰지 않고 화면 안에 창 단추를 직접 그립니다.
+    // 운영체제가 별도 층에 그리면 대화 상자 배경(.dialog-backdrop)이 창 단추를 덮지 못해 어두워지는 박자가 어긋납니다.
+    ...(process.platform === 'win32' ? { titleBarStyle: 'hidden' as const } : {}),
     ...(windowMaterial() === 'mica' ? { backgroundMaterial: 'mica' as const } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -151,12 +94,9 @@ function createWindow(): BrowserWindow {
   window.once('ready-to-show', () => window.show());
   window.on('enter-full-screen', () => sendWindowState(window));
   window.on('leave-full-screen', () => sendWindowState(window));
+  window.on('maximize', () => sendWindowState(window));
+  window.on('unmaximize', () => sendWindowState(window));
   window.webContents.on('did-finish-load', () => sendWindowState(window));
-  // 화면을 새로 불러오면 열려 있던 크게 보기와 대화 상자도 사라지므로 창 단추 색을 되돌립니다.
-  window.webContents.on('did-start-loading', () => {
-    lightboxOpen = false;
-    setDimmed(false);
-  });
   window.on('focus', () => model.windowFocused());
   window.on('close', (event) => {
     if (quitting || !keepsRunning()) return;
@@ -336,16 +276,20 @@ async function rangeResponse(target: string, header: string): Promise<Response> 
 
 function registerIPC(): void {
   ipcMain.handle('state', () => model.snapshot());
-  ipcMain.on('lightbox', (event, open: unknown) => {
-    if (event.sender !== mainWindow?.webContents) return;
-    lightboxOpen = open === true;
-    updateTitleBarOverlay();
+  ipcMain.handle('window-state', (event) => {
+    if (event.sender !== mainWindow?.webContents || !mainWindow || mainWindow.isDestroyed()) {
+      return { fullScreen: false, maximized: false };
+    }
+    return { fullScreen: mainWindow.isFullScreen(), maximized: mainWindow.isMaximized() };
   });
-  ipcMain.on('dimmed', (event, open: unknown) => {
-    if (event.sender !== mainWindow?.webContents) return;
-    setDimmed(open === true);
+  ipcMain.on('window-control', (event, action: unknown) => {
+    if (event.sender !== mainWindow?.webContents || !mainWindow || mainWindow.isDestroyed()) return;
+    if (action === 'minimize') mainWindow.minimize();
+    else if (action === 'maximize') {
+      if (mainWindow.isMaximized()) mainWindow.unmaximize();
+      else mainWindow.maximize();
+    } else if (action === 'close') mainWindow.close();
   });
-  nativeTheme.on('updated', updateTitleBarOverlay);
   ipcMain.handle('command', async (event, name: CommandName, args: unknown[]) => {
     if (event.sender !== mainWindow?.webContents) throw new Error('허용되지 않은 요청입니다.');
     if (!commands.has(name)) throw new Error(`알 수 없는 명령입니다: ${name}`);

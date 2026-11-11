@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
 import type { AppState, CommandName, Commands } from '../shared/types';
 
+export interface WindowState {
+  fullScreen: boolean;
+  maximized: boolean;
+}
+
 interface Bridge {
   getState(): Promise<AppState>;
+  getWindowState(): Promise<WindowState>;
   call(name: string, ...args: unknown[]): Promise<unknown>;
   onState(listener: (state: Partial<AppState>) => void): () => void;
-  onWindow(listener: (state: { fullScreen: boolean }) => void): () => void;
-  setLightbox(open: boolean): void;
-  setDimmed(open: boolean): void;
+  onWindow(listener: (state: WindowState) => void): () => void;
+  windowControl(action: 'minimize' | 'maximize' | 'close'): void;
 }
 
 const bridge = (window as unknown as { uncalive: Bridge }).uncalive;
@@ -41,27 +46,33 @@ export function useAppState(): AppState | undefined {
 
 const encodePath = (relative: string) => relative.split('/').map(encodeURIComponent).join('/');
 
-/** 전체 화면이면 html에 fullscreen을 붙입니다. 맥은 전체 화면에서 창 단추가 숨으므로 그 자리를 비워 두지 않습니다. */
+let currentWindow: WindowState = { fullScreen: false, maximized: false };
+const windowListeners = new Set<(state: WindowState) => void>();
+
+function applyWindowState(state: WindowState): void {
+  currentWindow = state;
+  document.documentElement.classList.toggle('fullscreen', state.fullScreen);
+  windowListeners.forEach((listener) => listener(state));
+}
+
+/** 전체 화면과 최대화 상태를 구독합니다. 맥은 전체 화면에서 창 단추가 숨으므로 그 자리를 비워 두지 않습니다. */
 export function watchWindowState(): () => void {
-  return bridge.onWindow((state) => document.documentElement.classList.toggle('fullscreen', state.fullScreen));
+  void bridge.getWindowState().then(applyWindowState).catch(() => undefined);
+  return bridge.onWindow(applyWindowState);
 }
 
-/** 크게 보기를 열고 닫은 것을 알립니다. Windows는 창 단추 색을 어두운 막대에 맞춥니다. */
-export function setLightboxOpen(open: boolean): void {
-  bridge.setLightbox(open);
-}
-
-let openDialogs = 0;
-/** 대화 상자가 떠 있는 동안 Windows의 창 단추도 화면과 같이 어둡게 칠하도록 알립니다. 여러 개가 겹쳐도 마지막이 닫힐 때 돌아옵니다. */
-export function useDimmedWindow(): void {
+export function useWindowState(): WindowState {
+  const [state, setState] = useState<WindowState>(currentWindow);
   useEffect(() => {
-    openDialogs += 1;
-    if (openDialogs === 1) bridge.setDimmed(true);
-    return () => {
-      openDialogs -= 1;
-      if (openDialogs === 0) bridge.setDimmed(false);
-    };
+    setState(currentWindow);
+    windowListeners.add(setState);
+    return () => { windowListeners.delete(setState); };
   }, []);
+  return state;
+}
+
+export function windowControl(action: 'minimize' | 'maximize' | 'close'): void {
+  bridge.windowControl(action);
 }
 
 /** 보관함 안의 파일을 화면에서 여는 주소입니다. */

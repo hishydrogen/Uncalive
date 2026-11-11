@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Archive, ArrowDownCircle, Bookmark, Images, Link2, Settings, UserCircle2 } from 'lucide-react';
 import { call, useAppState, watchWindowState } from './api';
-import { Spinner, ToastHost } from './components';
+import { Spinner, ToastHost, WindowControls } from './components';
 import { DownloadView } from './views/DownloadView';
 import { EntryListView, initialFilters, type Filters } from './views/EntryListView';
 import { GalleryView } from './views/GalleryView';
@@ -38,6 +38,7 @@ export function App() {
         {state.section === 'gallery' && <GalleryView state={state} />}
         {state.section === 'settings' && <SettingsView state={state} />}
       </main>
+      {state.platform === 'win32' && <WindowControls />}
       <ToastHost />
       {!state.termsAccepted && <TermsDialog />}
       {state.termsAccepted && state.aboutOpen && <AboutDialog state={state} />}

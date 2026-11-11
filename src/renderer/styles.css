@@ -475,9 +475,10 @@ progress:indeterminate { background: linear-gradient(90deg, transparent 0%, var(
 .platform-darwin .toolbar { -webkit-app-region: drag; }
 .platform-darwin .toolbar button, .platform-darwin .toolbar input, .platform-darwin .toolbar select, .platform-darwin .toolbar .segmented { -webkit-app-region: no-drag; }
 
-/* Windows도 제목 표시줄 자리까지 화면을 씁니다. 오른쪽 위 창 단추(높이 40px) 자리는 도구 막대에서 비워 둡니다.
- * 단추 너비는 운영체제가 알려 주는 값(titlebar-area)을 쓰고, 모르면 Windows 11 기본값인 138px로 둡니다. */
-.platform-win32 { --caption-width: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 138px))); }
+/* Windows도 제목 표시줄 자리까지 화면을 씁니다. 창 오른쪽 위의 최소화·최대화·닫기 단추(46px × 3 = 138px)는
+ * 운영체제 오버레이 대신 화면 안에 직접 그려 대화 상자 배경(.dialog-backdrop, z-index 50)과 한 몸으로 어두워지게 합니다. */
+.platform-win32 { --caption-width: 138px; }
+.platform-win32.fullscreen, html.platform-win32.fullscreen { --caption-width: 0px; }
 .platform-win32 .sidebar { padding-top: 0; -webkit-app-region: drag; }
 .platform-win32 .sidebar button, .platform-win32 .sidebar .account { -webkit-app-region: no-drag; }
 /* 오른쪽 도구 막대와 같은 높이에 두어, 앱 이름과 창 단추, 화면 제목이 한 줄에 놓이게 합니다. */
@@ -487,6 +488,19 @@ progress:indeterminate { background: linear-gradient(90deg, transparent 0%, var(
 .platform-win32 .toolbar button, .platform-win32 .toolbar input, .platform-win32 .toolbar select, .platform-win32 .toolbar .segmented { -webkit-app-region: no-drag; }
 html.platform-win32 .lightbox-bar { padding-right: calc(16px + var(--caption-width)); -webkit-app-region: drag; }
 html.platform-win32 .lightbox-bar button { -webkit-app-region: no-drag; }
+
+.window-controls { position: fixed; top: 0; right: 0; height: 57px; display: flex; z-index: 20; -webkit-app-region: no-drag; }
+.window-control { width: 46px; height: 100%; padding: 0; border: none; border-radius: 0; background: transparent; box-shadow: none; color: var(--text); justify-content: center; transition: background 100ms ease, color 100ms ease; }
+.window-control:hover:not(:disabled) { background: var(--hover); }
+.window-control:active:not(:disabled) { background: var(--pressed); transform: none; }
+.window-control.close:hover:not(:disabled) { background: #c42b1c; color: #ffffff; }
+.window-control.close:active:not(:disabled) { background: #b12618; color: #ffffff; }
+.lightbox-bar .window-controls { position: absolute; height: 51px; }
+.lightbox-bar .window-control { color: #eeeeee; }
+.lightbox-bar .window-control:hover:not(:disabled) { background: rgba(255, 255, 255, .12); }
+.lightbox-bar .window-control:active:not(:disabled) { background: rgba(255, 255, 255, .18); }
+.lightbox-bar .window-control.close:hover:not(:disabled) { background: #c42b1c; color: #ffffff; }
+.lightbox-bar .window-control.close:active:not(:disabled) { background: #b12618; color: #ffffff; }
 
 /* 운영체제에서 '동작 줄이기'를 켜면 움직임을 모두 끕니다. */
 @media (prefers-reduced-motion: reduce) {

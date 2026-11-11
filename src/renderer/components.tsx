@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, X } from 'lucide-react';
-import { useDimmedWindow } from './api';
+import { useWindowState, windowControl } from './api';
 
 export function EmptyState(props: { icon: ReactNode; title: string; description?: ReactNode; actions?: ReactNode }) {
   return (
@@ -218,9 +218,48 @@ export function useVisible<T extends Element>(): [React.RefObject<T | null>, boo
   return [ref, visible];
 }
 
+/**
+ * Windows에서 창 오른쪽 위에 직접 그리는 최소화·최대화(복원)·닫기 단추입니다.
+ * 운영체제 오버레이 대신 화면 안에 두어, 대화 상자 배경(.dialog-backdrop)이 덮을 때 다른 부분과 함께 자연스럽게 어두워집니다.
+ */
+export function WindowControls() {
+  const { fullScreen, maximized } = useWindowState();
+  if (fullScreen) return null;
+  return (
+    <div className="window-controls">
+      <button type="button" className="window-control" aria-label="최소화" title="최소화" onClick={() => windowControl('minimize')}>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <path d="M0 4.5h10v1H0z" fill="currentColor" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        className="window-control"
+        aria-label={maximized ? '이전 크기로 복원' : '최대화'}
+        title={maximized ? '이전 크기로 복원' : '최대화'}
+        onClick={() => windowControl('maximize')}
+      >
+        {maximized ? (
+          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M2 0h8v8H8V2H2V0zm-2 2h8v8H0V2zm1 1v6h6V3H1z" fill="currentColor" />
+          </svg>
+        ) : (
+          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M0 0h10v10H0V0zm1 1v8h8V1H1z" fill="currentColor" />
+          </svg>
+        )}
+      </button>
+      <button type="button" className="window-control close" aria-label="닫기" title="닫기" onClick={() => windowControl('close')}>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <path d="M.7 0L0 .7 4.3 5 0 9.3l.7.7L5 5.7 9.3 10l.7-.7L5.7 5 10 .7 9.3 0 5 4.3.7 0z" fill="currentColor" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 export function Dialog(props: { title: string; children: ReactNode; onClose: () => void; width?: number; dismissable?: boolean; className?: string; closeButton?: boolean }) {
   const dismissable = props.dismissable ?? true;
-  useDimmedWindow();
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && dismissable) props.onClose(); };
     window.addEventListener('keydown', onKey);
