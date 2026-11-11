@@ -208,7 +208,10 @@ input[type="checkbox"]:not([role="switch"]):hover:not(:checked) { border-color: 
 .account .link { font-size: 12px; align-self: flex-start; }
 
 .content { flex: 1; min-width: 0; display: flex; background: var(--bg); }
-.screen { flex: 1; min-width: 0; display: flex; flex-direction: column; animation: screen-in var(--slow) var(--ease) backwards; }
+/* 화면을 바꿀 때 내용만 나타나고 도구 막대의 바탕은 그대로 둡니다. 바탕까지 흐려지면 Windows에서
+   운영체제가 따로 칠하는 창 단추 자리만 색이 남아 깜빡여 보였습니다. */
+.screen { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.screen > :not(.toolbar), .screen > .toolbar > * { animation: screen-in var(--slow) var(--ease) backwards; }
 @keyframes screen-in { from { opacity: 0; transform: translateY(4px); } }
 .toolbar { display: flex; align-items: center; gap: 16px; padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--surface-2); min-height: 58px; }
 .toolbar-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex: 1; }
@@ -227,8 +230,8 @@ html:has(.material-vibrancy), html:has(.material-vibrancy) body, html:has(.mater
 /* 옵션 단추로 열 때만 옆에서 밀려 나옵니다. 다른 화면에서 들어올 때는 화면과 함께 나타나고,
    스크랩과 링크를 오갈 때는 열려 있던 패널을 그대로 두고 왼쪽 목록만 바뀝니다. */
 .inspector.slide { animation: inspector-in var(--slow) var(--ease) backwards; }
-.screen.keeps-inspector { animation: none; }
-.screen.keeps-inspector > .toolbar, .screen.keeps-inspector .split-main { animation: screen-in var(--slow) var(--ease) backwards; }
+.screen.keeps-inspector > .split { animation: none; }
+.screen.keeps-inspector .split-main { animation: screen-in var(--slow) var(--ease) backwards; }
 .inspector.closing { animation: inspector-out 220ms var(--ease) forwards; pointer-events: none; }
 @keyframes inspector-in { from { opacity: 0; margin-right: -292px; } }
 @keyframes inspector-out { to { opacity: 0; margin-right: -292px; } }
@@ -477,8 +480,9 @@ progress:indeterminate { background: linear-gradient(90deg, transparent 0%, var(
 .platform-win32 { --caption-width: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 138px))); }
 .platform-win32 .sidebar { padding-top: 0; -webkit-app-region: drag; }
 .platform-win32 .sidebar button, .platform-win32 .sidebar .account { -webkit-app-region: no-drag; }
-.window-title { height: 40px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 6px; margin-bottom: 4px; font-size: 12px; color: var(--muted); }
-.window-title img { border-radius: 4px; }
+/* 오른쪽 도구 막대와 같은 높이에 두어, 앱 이름과 창 단추, 화면 제목이 한 줄에 놓이게 합니다. */
+.window-title { height: 58px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 8px; margin-bottom: 4px; font-size: 13px; font-weight: 600; color: var(--text); }
+.window-title img { border-radius: 5px; }
 .platform-win32 .toolbar { -webkit-app-region: drag; padding-right: calc(18px + var(--caption-width)); }
 .platform-win32 .toolbar button, .platform-win32 .toolbar input, .platform-win32 .toolbar select, .platform-win32 .toolbar .segmented { -webkit-app-region: no-drag; }
 html.platform-win32 .lightbox-bar { padding-right: calc(16px + var(--caption-width)); -webkit-app-region: drag; }

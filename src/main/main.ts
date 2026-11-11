@@ -59,13 +59,16 @@ function keepsRunning(): boolean {
  * Windows에서는 맥처럼 제목 표시줄을 없애고 앱 화면을 창 맨 위까지 씁니다. 최소화·최대화·닫기 단추만 운영체제가 오른쪽 위에 그립니다.
  * 단추 바탕은 그 자리에 오는 도구 막대 색과 같게 칠하고, 크게 보기를 열면 어두운 막대 색으로 바꿉니다.
  */
-const titleBarHeight = 40;
+// 단추 높이를 그 자리의 막대 높이(styles.css의 .toolbar min-height, .lightbox-bar height)에 맞춰 가운데를 맞춥니다.
+// 막대 맨 아래 1px은 테두리 선이므로 비워 둡니다. 덮으면 선이 단추 자리에서 끊겨 보입니다.
+const toolbarHeight = 58 - 1;
+const lightboxBarHeight = 52 - 1;
 let lightboxOpen = false;
 function titleBarOverlay(): Electron.TitleBarOverlayOptions {
-  if (lightboxOpen) return { color: '#15151b', symbolColor: '#eeeeee', height: titleBarHeight };
+  if (lightboxOpen) return { color: '#15151b', symbolColor: '#eeeeee', height: lightboxBarHeight };
   const dark = nativeTheme.shouldUseDarkColors;
   // styles.css의 --surface-2와 --text입니다.
-  return { color: dark ? '#212127' : '#fbfbfc', symbolColor: dark ? '#f1f1f5' : '#17171c', height: titleBarHeight };
+  return { color: dark ? '#212127' : '#fbfbfc', symbolColor: dark ? '#f1f1f5' : '#17171c', height: toolbarHeight };
 }
 function updateTitleBarOverlay(): void {
   if (process.platform === 'win32' && mainWindow && !mainWindow.isDestroyed()) mainWindow.setTitleBarOverlay(titleBarOverlay());

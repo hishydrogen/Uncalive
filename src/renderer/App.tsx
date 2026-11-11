@@ -76,7 +76,7 @@ function Sidebar({ state }: { state: AppState }) {
       {/* Windows는 제목 표시줄을 없앴으므로, 다른 Windows 11 앱처럼 왼쪽 위에 앱 이름을 둡니다. */}
       {state.platform === 'win32' && (
         <div className="window-title">
-          <img src={appIcon} alt="" width={16} height={16} />
+          <img src={appIcon} alt="" width={22} height={22} />
           <span>언카라이브</span>
         </div>
       )}
