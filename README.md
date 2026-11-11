@@ -63,18 +63,18 @@ xattr -dr com.apple.quarantine /Applications/Uncalive.app
 
 ### Windows
 
-1. `Setup.exe`를 실행하면 별도의 설정 없이 바로 설치되고 앱이 실행됩니다. 무설치(포터블) 버전은 2.1.0부터 제공하지 않습니다.
+1. `Setup.exe`를 실행하면 별도의 설정 과정 없이 바로 설치된 뒤 앱이 실행됩니다. 포터블(무설치) 버전은 2.1.0부터 제공하지 않습니다.
 2. **"Windows의 PC 보호(SmartScreen)" 창이 뜰 때**: **추가 정보**를 누른 뒤 **실행**을 누르면 정상적으로 실행됩니다.
 
 ### Linux
 
-배포판에 맞는 형식을 골라 내려받으세요. 새 버전 알림은 설치한 형식과 같은 형식의 파일을 알려 줍니다.
+사용 중인 배포판에 맞는 형식의 설치 파일을 내려받으세요. 새 버전 알림은 현재 설치된 형식에 맞는 파일을 안내합니다.
 
 | 형식 | 대상 배포판 |
 |---|---|
 | `.deb` | Debian, Ubuntu, Linux Mint, Pop!_OS, elementary OS 등 Debian 계열 |
 | `.rpm` | Fedora, openSUSE, RHEL, Rocky Linux, AlmaLinux 등 RPM 계열 |
-| `.AppImage` | Arch Linux, Manjaro, EndeavourOS 등 그 밖의 배포판 (설치 없이 실행) |
+| `.AppImage` | Arch Linux, Manjaro, EndeavourOS 등 그 밖의 배포판 (설치 없이 바로 실행) |
 
 - **`.deb`**
 
@@ -82,13 +82,13 @@ xattr -dr com.apple.quarantine /Applications/Uncalive.app
 sudo apt install ./Uncalive-*.deb
 ```
 
-- **`.rpm`** (openSUSE는 `sudo zypper install`)
+- **`.rpm`** (openSUSE에서는 `sudo zypper install` 사용)
 
 ```bash
 sudo dnf install ./Uncalive-*.rpm
 ```
 
-- **`.AppImage`**: 실행 권한을 부여한 뒤 실행합니다. 필요한 라이브러리가 포함되어 있어 따로 설치할 것이 없습니다.
+- **`.AppImage`**: 실행 권한을 부여한 뒤 실행합니다. 필요한 라이브러리가 모두 포함되어 있어 별도 패키지를 설치할 필요가 없습니다.
 
 ```bash
 chmod +x Uncalive-*.AppImage
