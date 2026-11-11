@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, X } from 'lucide-react';
+import { useDimmedWindow } from './api';
 
 export function EmptyState(props: { icon: ReactNode; title: string; description?: ReactNode; actions?: ReactNode }) {
   return (
@@ -219,6 +220,7 @@ export function useVisible<T extends Element>(): [React.RefObject<T | null>, boo
 
 export function Dialog(props: { title: string; children: ReactNode; onClose: () => void; width?: number; dismissable?: boolean; className?: string; closeButton?: boolean }) {
   const dismissable = props.dismissable ?? true;
+  useDimmedWindow();
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && dismissable) props.onClose(); };
     window.addEventListener('keydown', onKey);

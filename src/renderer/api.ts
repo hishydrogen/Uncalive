@@ -7,6 +7,7 @@ interface Bridge {
   onState(listener: (state: Partial<AppState>) => void): () => void;
   onWindow(listener: (state: { fullScreen: boolean }) => void): () => void;
   setLightbox(open: boolean): void;
+  setDimmed(open: boolean): void;
 }
 
 const bridge = (window as unknown as { uncalive: Bridge }).uncalive;
@@ -48,6 +49,19 @@ export function watchWindowState(): () => void {
 /** 크게 보기를 열고 닫은 것을 알립니다. Windows는 창 단추 색을 어두운 막대에 맞춥니다. */
 export function setLightboxOpen(open: boolean): void {
   bridge.setLightbox(open);
+}
+
+let openDialogs = 0;
+/** 대화 상자가 떠 있는 동안 Windows의 창 단추도 화면과 같이 어둡게 칠하도록 알립니다. 여러 개가 겹쳐도 마지막이 닫힐 때 돌아옵니다. */
+export function useDimmedWindow(): void {
+  useEffect(() => {
+    openDialogs += 1;
+    if (openDialogs === 1) bridge.setDimmed(true);
+    return () => {
+      openDialogs -= 1;
+      if (openDialogs === 0) bridge.setDimmed(false);
+    };
+  }, []);
 }
 
 /** 보관함 안의 파일을 화면에서 여는 주소입니다. */

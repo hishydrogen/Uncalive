@@ -57,18 +57,29 @@ function keepsRunning(): boolean {
 
 /**
  * Windows에서는 맥처럼 제목 표시줄을 없애고 앱 화면을 창 맨 위까지 씁니다. 최소화·최대화·닫기 단추만 운영체제가 오른쪽 위에 그립니다.
- * 단추 바탕은 그 자리에 오는 도구 막대 색과 같게 칠하고, 크게 보기를 열면 어두운 막대 색으로 바꿉니다.
+ * 단추 바탕은 그 자리에 오는 도구 막대 색과 같게 칠하고, 크게 보기를 열면 어두운 막대 색으로, 대화 상자가 뜨면 화면과 같이 어둡게 바꿉니다.
  */
 // 단추 높이를 그 자리의 막대 높이(styles.css의 .toolbar min-height, .lightbox-bar height)에 맞춰 가운데를 맞춥니다.
 // 막대 맨 아래 1px은 테두리 선이므로 비워 둡니다. 덮으면 선이 단추 자리에서 끊겨 보입니다.
 const toolbarHeight = 58 - 1;
 const lightboxBarHeight = 52 - 1;
 let lightboxOpen = false;
+/** 대화 상자가 떠서 화면이 어두워졌는지입니다. 창 단추는 운영체제가 따로 칠하므로 같은 만큼 어둡게 칠합니다. */
+let dimmed = false;
+
+/** 화면 위에 대화 상자 바탕(styles.css의 .dialog-backdrop: rgba(10, 10, 20, .34))을 덮은 색입니다. */
+function dim(hex: string): string {
+  const shade = [10, 10, 20];
+  const mixed = [1, 3, 5].map((start, index) => Math.round(parseInt(hex.slice(start, start + 2), 16) * 0.66 + shade[index] * 0.34));
+  return '#' + mixed.map((value) => value.toString(16).padStart(2, '0')).join('');
+}
 function titleBarOverlay(): Electron.TitleBarOverlayOptions {
-  if (lightboxOpen) return { color: '#15151b', symbolColor: '#eeeeee', height: lightboxBarHeight };
   const dark = nativeTheme.shouldUseDarkColors;
   // styles.css의 --surface-2와 --text입니다.
-  return { color: dark ? '#212127' : '#fbfbfc', symbolColor: dark ? '#f1f1f5' : '#17171c', height: toolbarHeight };
+  const base = lightboxOpen
+    ? { color: '#15151b', symbolColor: '#eeeeee', height: lightboxBarHeight }
+    : { color: dark ? '#212127' : '#fbfbfc', symbolColor: dark ? '#f1f1f5' : '#17171c', height: toolbarHeight };
+  return dimmed ? { ...base, color: dim(base.color), symbolColor: dim(base.symbolColor) } : base;
 }
 function updateTitleBarOverlay(): void {
   if (process.platform === 'win32' && mainWindow && !mainWindow.isDestroyed()) mainWindow.setTitleBarOverlay(titleBarOverlay());
@@ -110,6 +121,12 @@ function createWindow(): BrowserWindow {
   window.on('enter-full-screen', () => sendWindowState(window));
   window.on('leave-full-screen', () => sendWindowState(window));
   window.webContents.on('did-finish-load', () => sendWindowState(window));
+  // 화면을 새로 불러오면 열려 있던 크게 보기와 대화 상자도 사라지므로 창 단추 색을 되돌립니다.
+  window.webContents.on('did-start-loading', () => {
+    lightboxOpen = false;
+    dimmed = false;
+    updateTitleBarOverlay();
+  });
   window.on('focus', () => model.windowFocused());
   window.on('close', (event) => {
     if (quitting || !keepsRunning()) return;
@@ -292,6 +309,11 @@ function registerIPC(): void {
   ipcMain.on('lightbox', (event, open: unknown) => {
     if (event.sender !== mainWindow?.webContents) return;
     lightboxOpen = open === true;
+    updateTitleBarOverlay();
+  });
+  ipcMain.on('dimmed', (event, open: unknown) => {
+    if (event.sender !== mainWindow?.webContents) return;
+    dimmed = open === true;
     updateTitleBarOverlay();
   });
   nativeTheme.on('updated', updateTitleBarOverlay);
