@@ -61,7 +61,8 @@ function General({ state }: { state: AppState }) {
           <span className="path" title={options.destination}><span dir="ltr">{options.destination}</span></span>
           <button onClick={() => void call('chooseDestination')} disabled={jobActive}>변경…</button>
         </Row>
-        <p className="caption">현재 보관함: {state.libraryRoot}<br />보관함은 로그인한 계정마다 저장 위치 안에 따로 만들어지고, 로그인하지 않았을 때는 Guest 보관함을 씁니다. 닉네임이 아닌 로그인 아이디로 계정을 구분하므로, 닉네임을 바꾸거나 다른 계정과 겹쳐도 보관함이 섞이지 않습니다. 계정을 전환하면 해당 계정의 보관함과 링크 목록, 스크랩 목록으로 바뀝니다.</p>
+        <Toggle label="계정마다 보관함 나누기" checked={state.useAccountFolder} disabled={jobActive} onChange={(value) => void call('setUseAccountFolder', value)} />
+        <p className="caption">현재 보관함: {state.libraryRoot}<br />켜면 저장 위치 안의 계정 폴더를, 끄면 저장 위치 바로 아래를 보관함으로 씁니다. 어느 폴더를 볼지만 바뀌고 이미 받은 파일은 옮기지 않으므로, 되돌리면 전에 보던 보관함이 그대로 나옵니다. 계정은 닉네임이 아닌 로그인 아이디로 구분하며, 스크랩 목록은 이 옵션과 관계없이 계정마다 따로 저장합니다.</p>
       </section>
 
       <section className="card">
@@ -83,7 +84,7 @@ function General({ state }: { state: AppState }) {
           <span>{state.scrapsFullSyncAt ? formatAgo(state.scrapsFullSyncAt) : '없음'}</span>
           <button onClick={() => void call('reloadAllScraps')} disabled={state.isBusy || state.login !== 'loggedIn'}>전체 다시 불러오기</button>
         </Row>
-        <p className="caption">불러온 스크랩 목록은 계정마다 보관함에 저장해 두고, 앱을 열면 바로 보여 줍니다. 새로고침은 첫 페이지부터 읽다가 이미 있는 글이 나오면 멈추므로 금방 끝납니다. 아카라이브에서 스크랩을 해제한 글은 새로고침으로는 목록에서 빠지지 않으니, 필요할 때 '전체 다시 불러오기'를 눌러 주세요. 불러올 범위를 바꾸면 다음 새로고침은 전체를 다시 읽습니다.</p>
+        <p className="caption">불러온 스크랩 목록은 계정마다 따로 저장해 두고, 앱을 열면 바로 보여 줍니다. 새로고침은 첫 페이지부터 읽다가 이미 있는 글이 나오면 멈추므로 금방 끝납니다. 아카라이브에서 스크랩을 해제한 글은 새로고침으로는 목록에서 빠지지 않으니, 필요할 때 '전체 다시 불러오기'를 눌러 주세요. 불러올 범위를 바꾸면 다음 새로고침은 전체를 다시 읽습니다.</p>
       </section>
 
       <section className="card">
@@ -112,6 +113,12 @@ function General({ state }: { state: AppState }) {
         <Row label="이름 최대 길이">
           <NumberField label="이름 최대 길이" value={options.folderNameMaxLength} min={20} max={120} onChange={(folderNameMaxLength) => updateOptions(state, { folderNameMaxLength })} />자
         </Row>
+      </section>
+
+      <section className="card">
+        <h3>업데이트</h3>
+        <Toggle label="새 버전 자동 확인" checked={state.update.auto} onChange={(value) => void call('setUpdateCheck', value)} />
+        <p className="caption">앱을 시작할 때와 6시간마다 GitHub에서 새 버전을 확인합니다. 앱 이름과 버전 외의 정보는 보내지 않습니다. 새 버전이 있으면 이 컴퓨터에 맞는 설치 파일을 알려 드리며, 설치는 받은 파일을 실행해 직접 해 주세요.</p>
       </section>
     </>
   );
@@ -197,22 +204,12 @@ function Speed({ state }: { state: AppState }) {
   );
 }
 
+/** 나무덤프처럼 설정 맨 아래에 정보 창을 여는 단추와 버전을 둡니다. Windows는 메뉴 막대가 없으므로 여기가 정보 창의 입구입니다. */
 function AboutFooter({ state }: { state: AppState }) {
-  const os = ({ darwin: 'macOS', win32: 'Windows', linux: 'Linux' } as Record<string, string>)[state.platform] ?? state.platform;
-  const arch = state.platform === 'darwin' && state.arch === 'arm64' ? 'Apple Silicon' : state.arch;
   return (
-    <footer className="about-footer">
-      <div className="about-meta">
-        <strong>언카라이브 {state.version}</strong>
-        <span>{os} ({arch})</span>
-        <span>© 2026 Hishydrogen</span>
-      </div>
-      <div className="about-links">
-        <a href="https://github.com/hishydrogen/Uncalive#readme" target="_blank" rel="noreferrer">사용 설명서</a>
-        <a href="https://github.com/hishydrogen/Uncalive/releases" target="_blank" rel="noreferrer">릴리스 노트</a>
-        <a href="https://github.com/hishydrogen/Uncalive/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT 라이선스</a>
-        <a href="https://github.com/hishydrogen/Uncalive" target="_blank" rel="noreferrer">GitHub</a>
-      </div>
+    <footer className="settings-foot">
+      <button className="link" onClick={() => void call('setAboutOpen', true)}>언카라이브에 관하여</button>
+      <span>버전 {state.version}</span>
     </footer>
   );
 }

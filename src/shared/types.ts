@@ -1,5 +1,6 @@
 import type { ScrapEntry } from '../core/models';
 import type { ArchiveSource, DownloadOptions, ListScope } from '../core/options';
+import type { UpdateRelease, UpdateResult } from '../core/update';
 
 export type { ScrapEntry, ArchiveSource, DownloadOptions, ListScope };
 
@@ -84,12 +85,17 @@ export interface LibraryItem {
   hasPage: boolean;
 }
 
-/** 새 버전을 처음 열었을 때 한 번 보여 주는 안내입니다. */
-export interface AppNotice {
-  /** 함께 쓰던 보관함을 옮긴 폴더의 전체 경로입니다. 옮긴 것이 없으면 비어 있습니다. */
-  legacyFolder?: string;
-  /** 옮기지 못한 항목이 있어 다음에 앱을 열 때 다시 시도합니다. */
-  incomplete?: boolean;
+/** 새 버전 확인 상태입니다(main/updates.ts). */
+export interface UpdateState {
+  /** 시작할 때와 몇 시간마다 저절로 확인하는지입니다. */
+  auto: boolean;
+  checking: boolean;
+  /** 마지막으로 확인한 결과입니다. */
+  result?: UpdateResult;
+  /** 마지막으로 확인에 성공한 때입니다. */
+  checkedAt?: number;
+  /** 알림 카드에 띄울 새 버전입니다. */
+  notice?: UpdateRelease;
 }
 
 export interface AppState {
@@ -102,6 +108,7 @@ export interface AppState {
   username?: string;
   /** 로그인 아이디입니다. 계정마다 보관함을 나누는 기준입니다. */
   loginID?: string;
+  useAccountFolder: boolean;
   options: DownloadOptions;
   libraryRoot: string;
   scraps: ListState;
@@ -117,11 +124,13 @@ export interface AppState {
   autoDownloadNew: boolean;
   theme: 'system' | 'light' | 'dark';
   notifications: boolean;
-  notice?: AppNotice;
   /** 처음 실행 안내에 동의했는지입니다. */
   termsAccepted: boolean;
   library: LibraryItem[];
   isLoadingLibrary: boolean;
+  update: UpdateState;
+  /** '언카라이브에 관하여' 창을 열었는지입니다. 메뉴에서도 열므로 메인 프로세스가 기억합니다. */
+  aboutOpen: boolean;
 }
 
 /** 화면에서 보내는 명령입니다. 이름과 인자가 `AppModel`의 메서드와 같습니다. */
@@ -147,13 +156,17 @@ export interface Commands {
   clearJob(): void;
   exportCSV(kind: ListKind, ids: string[]): void;
   setOptions(options: DownloadOptions): void;
+  setUseAccountFolder(value: boolean): void;
   setAutoCheckHours(hours: number): void;
   setAutoDownloadNew(value: boolean): void;
   setTheme(theme: 'system' | 'light' | 'dark'): void;
   setNotifications(value: boolean): void;
   acceptTerms(): void;
-  dismissNotice(): void;
-  openLegacyFolder(): void;
+  checkForUpdates(): Promise<UpdateResult>;
+  dismissUpdate(skip: boolean): void;
+  downloadUpdate(): boolean;
+  setUpdateCheck(value: boolean): void;
+  setAboutOpen(open: boolean): void;
   testNotification(): void;
   quit(): void;
   checkNow(): void;

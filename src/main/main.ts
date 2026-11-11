@@ -29,7 +29,7 @@ protocol.registerSchemesAsPrivileged([
 const commands = new Set<CommandName>([
   'setSection', 'signIn', 'signOut', 'refreshScraps', 'reloadAllScraps', 'stopLoading', 'addTargets', 'clearCollection', 'removeFromCollection',
   'removeCheckedFromCollection', 'removeFromCollectionMany', 'undoRemoveFromCollection', 'setSelection', 'setChecked', 'checkUnsaved', 'startDownload', 'togglePause', 'cancelDownload', 'clearJob', 'exportCSV',
-  'setOptions', 'setAutoCheckHours', 'setAutoDownloadNew', 'setTheme', 'setNotifications', 'acceptTerms', 'dismissNotice', 'openLegacyFolder', 'quit', 'testNotification', 'checkNow', 'chooseDestination', 'openPost',
+  'setOptions', 'setUseAccountFolder', 'setAutoCheckHours', 'setAutoDownloadNew', 'setTheme', 'setNotifications', 'acceptTerms', 'checkForUpdates', 'dismissUpdate', 'downloadUpdate', 'setUpdateCheck', 'setAboutOpen', 'quit', 'testNotification', 'checkNow', 'chooseDestination', 'openPost',
   'revealPost', 'revealFile', 'openLibraryFolder', 'reloadLibrary', 'searchLibrary', 'redownloadPosts', 'trashPosts', 'copyFiles', 'exportFiles',
 ]);
 
@@ -161,11 +161,15 @@ function buildMenu(): void {
   };
   const isMac = process.platform === 'darwin';
   const settings: MenuItemConstructorOptions = { label: '설정…', accelerator: 'CmdOrCtrl+,', click: send('settings') };
+  // 운영체제 기본 정보 창 대신, 세 운영체제에서 같은 모양으로 앱이 직접 그리는 창을 엽니다.
+  const about: MenuItemConstructorOptions = { label: `${appName}에 관하여`, click: () => { showMainWindow(); model.setAboutOpen(true); } };
+  // 정보 창에서 확인 결과를 보여 줍니다. 새 버전이 있으면 정보 창을 닫고 알림 카드를 띄웁니다.
+  const checkUpdates: MenuItemConstructorOptions = { label: '업데이트 확인…', click: () => { showMainWindow(); model.setAboutOpen(true); void model.checkForUpdates(); } };
   const template: MenuItemConstructorOptions[] = [
     ...(isMac ? [{
       label: appName,
       submenu: [
-        { role: 'about', label: `${appName} 정보` }, { type: 'separator' }, settings, { type: 'separator' },
+        about, checkUpdates, { type: 'separator' }, settings, { type: 'separator' },
         { role: 'hide', label: `${appName} 가리기` }, { role: 'hideOthers', label: '기타 가리기' }, { role: 'unhide', label: '모두 보기' },
         { type: 'separator' }, { role: 'quit', label: `${appName} 종료` },
       ] as MenuItemConstructorOptions[],
@@ -208,15 +212,9 @@ function buildMenu(): void {
       label: '도움말',
       submenu: [
         { label: '사용 설명서', click: () => void shell.openExternal('https://github.com/hishydrogen/Uncalive#readme') },
-        { label: '릴리스 노트 및 업데이트 확인', click: () => void shell.openExternal('https://github.com/hishydrogen/Uncalive/releases/latest') },
+        { label: '릴리스 노트', click: () => void shell.openExternal('https://github.com/hishydrogen/Uncalive/releases') },
         { label: '문제 제보 및 건의', click: () => void shell.openExternal('https://github.com/hishydrogen/Uncalive/issues') },
-        { type: 'separator' },
-        ...(isMac ? [
-          { label: `${appName} ${app.getVersion()} (${process.arch})`, enabled: false },
-          { label: '© 2026 Hishydrogen', enabled: false },
-        ] : [
-          { label: `${appName} 정보`, click: () => app.showAboutPanel() },
-        ]),
+        ...(isMac ? [] : [{ type: 'separator' as const }, checkUpdates, about]),
       ],
     },
   ];
@@ -413,15 +411,6 @@ if (!app.requestSingleInstanceLock()) {
       return;
     }
     log('=== 개발 빌드 시작 ===');
-    app.setAboutPanelOptions({
-      applicationName: appName,
-      applicationVersion: app.getVersion(),
-      version: process.arch,
-      copyright: '© 2026 Hishydrogen',
-      credits: '아카라이브 스크랩 및 게시글 오프라인 보관 프로그램\nMIT License (github.com/hishydrogen/Uncalive)',
-      website: 'https://github.com/hishydrogen/Uncalive',
-      iconPath: resource('icon.png'),
-    });
     const defaultFolder = isDev ? 'Uncalive Dev' : 'Uncalive';
     // 시험용으로 따로 띄울 때는 예전 앱의 설정을 읽지 않습니다.
     if (!process.env.UNCALIVE_PROFILE_DIR) await importLegacySettings(isDev ? 'io.github.hishydrogen.uncalive.dev' : 'io.github.hishydrogen.uncalive');

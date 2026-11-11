@@ -7,8 +7,8 @@ import { EntryListView, initialFilters, type Filters } from './views/EntryListVi
 import { GalleryView } from './views/GalleryView';
 import { LibraryView } from './views/LibraryView';
 import { SettingsView } from './views/SettingsView';
-import { NoticeDialog } from './views/NoticeDialog';
 import { TermsDialog } from './views/TermsDialog';
+import { AboutDialog, UpdateCard } from './views/AboutDialog';
 import type { AppState, Section } from '../shared/types';
 import appIcon from '../../resources/icon.svg';
 
@@ -40,7 +40,8 @@ export function App() {
       </main>
       <ToastHost />
       {!state.termsAccepted && <TermsDialog />}
-      {state.termsAccepted && state.notice && <NoticeDialog notice={state.notice} />}
+      {state.termsAccepted && state.aboutOpen && <AboutDialog state={state} />}
+      {state.termsAccepted && <UpdateCard update={state.update} />}
     </div>
   );
 }

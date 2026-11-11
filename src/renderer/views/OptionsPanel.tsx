@@ -12,11 +12,11 @@ export function updateArchive(state: AppState, patch: Partial<DownloadOptions['a
 }
 
 /** 다운로드 전에 자주 바꾸는 옵션을 목록 옆에서 바로 보여 줍니다. */
-export function OptionsPanel({ state, closing }: { state: AppState; closing?: boolean }) {
+export function OptionsPanel({ state, closing, slide }: { state: AppState; closing?: boolean; slide?: boolean }) {
   const options = state.options;
   const jobActive = state.job !== undefined && ['running', 'paused', 'waitingForChallenge'].includes(state.job.status);
   return (
-    <aside className={`inspector ${closing ? 'closing' : ''}`} aria-hidden={closing}>
+    <aside className={`inspector ${closing ? 'closing' : slide ? 'slide' : ''}`} aria-hidden={closing}>
       <section className="card">
         <h3>저장 위치</h3>
         <div className="row between">

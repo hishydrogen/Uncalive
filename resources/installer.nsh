@@ -5,6 +5,20 @@
 
 !define UNCALIVE_DESKTOP_LINK "$DESKTOP\${SHORTCUT_NAME}.lnk"
 
+; 2.0.x까지는 설치 마법사에서 '모든 사용자'를 고를 수 있었습니다. 원클릭 설치는 현재 사용자 계정에만 설치하고
+; 그쪽(HKCU)의 이전 버전만 지우므로, 모든 사용자용 이전 설치가 있으면 따로 지우도록 알립니다(나무덤프와 같음).
+!macro customInit
+  ${IfNot} ${Silent}
+    ReadRegStr $0 HKLM "${INSTALL_REGISTRY_KEY}" InstallLocation
+    ReadRegStr $1 HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation
+    ${If} $0 != ""
+    ${AndIf} $1 == ""
+      MessageBox MB_OKCANCEL|MB_ICONINFORMATION "이 컴퓨터에 '모든 사용자'용으로 설치된 이전 언카라이브가 있습니다.$\r$\n$\r$\n새 버전은 현재 사용자 계정에 설치됩니다. 설치가 끝나면 Windows 설정의 '앱'에서 이전 언카라이브를 제거해 주세요. 설정과 로그인 정보, 보관함은 그대로 남습니다." IDOK +2
+      Quit
+    ${EndIf}
+  ${EndIf}
+!macroend
+
 !macro customInstall
   ; 2.0.1과 2.0.2는 바로가기를 영문 이름(Uncalive.lnk)으로 만들고 desktop.ini로 한글 이름을 붙였습니다. 남은 것을 정리합니다.
   Delete "$DESKTOP\Uncalive.lnk"

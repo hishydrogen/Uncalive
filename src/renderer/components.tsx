@@ -217,7 +217,7 @@ export function useVisible<T extends Element>(): [React.RefObject<T | null>, boo
   return [ref, visible];
 }
 
-export function Dialog(props: { title: string; children: ReactNode; onClose: () => void; width?: number; dismissable?: boolean }) {
+export function Dialog(props: { title: string; children: ReactNode; onClose: () => void; width?: number; dismissable?: boolean; className?: string; closeButton?: boolean }) {
   const dismissable = props.dismissable ?? true;
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && dismissable) props.onClose(); };
@@ -226,8 +226,13 @@ export function Dialog(props: { title: string; children: ReactNode; onClose: () 
   });
   return createPortal(
     <div className="dialog-backdrop" onMouseDown={(event) => { if (dismissable && event.target === event.currentTarget) props.onClose(); }}>
-      <div className="dialog" role="dialog" aria-modal aria-label={props.title} style={{ width: props.width ?? 540 }}>
-        <h2>{props.title}</h2>
+      <div className={`dialog ${props.className ?? ''}`} role="dialog" aria-modal aria-label={props.title} style={{ width: props.width ?? 540 }}>
+        {props.closeButton ? (
+          <div className="dialog-head">
+            <h2>{props.title}</h2>
+            <button className="plain dialog-close" aria-label="닫기" title="닫기" onClick={props.onClose}><X size={16} /></button>
+          </div>
+        ) : <h2>{props.title}</h2>}
         {props.children}
       </div>
     </div>,

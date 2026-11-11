@@ -120,6 +120,9 @@ function StatusIcon({ status }: { status: LiveStatus }) {
   return <span className={`status-icon ${status}`} title={`${info.label}: ${info.detail}`} aria-label={info.label}>{icon}</span>;
 }
 
+/** 바로 앞 화면(스크랩이나 링크)에 옵션 패널이 열려 있었는지입니다. 그랬다면 다음 화면에서 패널을 다시 열지 않고 그대로 둡니다. */
+let inspectorOnScreen = false;
+
 /** 스크랩과 링크가 함께 쓰는 글 목록 화면입니다. */
 export function EntryListView(props: { state: AppState; kind: ListKind; filters: Filters; onFilters: (filters: Filters) => void }) {
   const { state, kind, filters } = props;
@@ -128,6 +131,13 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
   const [showOptions, setShowOptions] = usePreference('showDownloadOptions', true);
   const [showAdd, setShowAdd] = useState(false);
   const panel = usePresence(showOptions, 220);
+  // 앞 화면에서 이어 온 패널은 움직이지 않고, 옵션 단추로 열 때만 밀려 나옵니다.
+  const [kept] = useState(() => inspectorOnScreen && showOptions);
+  const [slide, setSlide] = useState(false);
+  useEffect(() => {
+    inspectorOnScreen = panel.mounted && !panel.closing;
+    return () => { inspectorOnScreen = false; };
+  }, [panel.mounted, panel.closing]);
   const menu = useContextMenu();
   const set = (patch: Partial<Filters>) => props.onFilters({ ...filters, ...patch });
 
@@ -433,7 +443,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
   }
 
   return (
-    <div className="screen">
+    <div className={`screen ${kept ? 'keeps-inspector' : ''}`}>
       <Header title={isScraps ? '스크랩' : '링크'} subtitle={subtitle}>
         {list.entries.length > 0 && <SearchField value={filters.search} onChange={(search) => set({ search })} placeholder="제목, 작성자 검색" />}
         {loading ? (
@@ -447,13 +457,13 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
           </>
         )}
         <button onClick={() => void call('exportCSV', kind, visible.map((entry) => entry.id))} disabled={list.entries.length === 0}>CSV로 내보내기</button>
-        <button className={showOptions ? 'selected icon' : 'icon'} onClick={() => setShowOptions(!showOptions)} title={showOptions ? '다운로드 옵션 숨기기' : '다운로드 옵션 보기'} aria-label="다운로드 옵션">
+        <button className={showOptions ? 'selected icon' : 'icon'} onClick={() => { setSlide(!showOptions); setShowOptions(!showOptions); }} title={showOptions ? '다운로드 옵션 숨기기' : '다운로드 옵션 보기'} aria-label="다운로드 옵션">
           <SlidersHorizontal size={15} />
         </button>
       </Header>
       <div className="split">
         <section className="split-main">{body}</section>
-        {panel.mounted && <OptionsPanel state={state} closing={panel.closing} />}
+        {panel.mounted && <OptionsPanel state={state} closing={panel.closing} slide={slide} />}
       </div>
       {showAdd && <AddURLsDialog state={state} onClose={() => setShowAdd(false)} />}
       {menu.element}

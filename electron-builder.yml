@@ -26,10 +26,11 @@ win:
   target:
     - target: nsis
     - target: zip
+# 나무덤프와 같이 마법사 없이 진행 막대만 보이는 원클릭 설치입니다. 현재 사용자 계정에 설치하고 끝나면 바로 실행합니다.
 nsis:
-  oneClick: false
+  oneClick: true
   perMachine: false
-  allowToChangeInstallationDirectory: true
+  runAfterFinish: true
   # 바탕 화면 바로가기는 installer.nsh에서 직접 만듭니다. electron-builder는 바로가기를 만든 뒤 앱 ID(AUMID)를 덧써 넣는데,
   # Parallels처럼 맥과 같이 쓰는 바탕 화면에서는 그 사이에 바로가기가 실행 대상이 빈 채로 바뀌었습니다.
   createDesktopShortcut: false

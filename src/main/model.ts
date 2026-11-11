@@ -12,27 +12,25 @@ import { csvData, loadLibrary, matches, snippet, type ArchivedPost } from '../co
 import { CancellationError, entryDate, errorMessage, UncaliveError, type ScrapEntry } from '../core/models';
 import { sanitize } from '../core/naming';
 import { chooseAccountFolder } from '../core/accounts';
-import { migrateGuestFolder, migrateLibraryFolders, moveSharedLibrary } from '../core/folders';
+import { migrateGuestFolder, migrateLibraryFolders } from '../core/folders';
 import { mergeOptions, type ArchiveSource, type DownloadOptions, type ListScope, type PageRange } from '../core/options';
 import { canCheckNewOnly, parseScrapCache, type ScrapCache } from '../core/scrapCache';
+import type { UpdateResult } from '../core/update';
 import { parseTargets } from '../core/parser';
 import { DownloadQueue } from '../core/queue';
 import { ResumeStore, stateFile, type PostRecord } from '../core/resume';
 import type {
-  AppNotice, AppState, JobState, LibraryItem, LibraryMedia, ListKind, ListLoad, ListState, LoginState, LogLine, PostStatus, Section,
+  AppState, JobState, LibraryItem, LibraryMedia, ListKind, ListLoad, ListState, LoginState, LogLine, PostStatus, Section,
 } from '../shared/types';
 import { BrowserController } from './browser';
 import { log } from './log';
+import { Updates } from './updates';
 import { Settings } from './settings';
 
 /** 로그인하지 않았을 때 쓰는 보관함 폴더 이름입니다. */
 const noAccountFolder = 'Guest';
 /** 처음 실행할 때 보여 주는 안내의 판입니다. 내용을 바꾸면 올려서 한 번 더 동의를 받습니다. */
 export const termsVersion = 1;
-/** 업데이트한 사용자에게 한 번 보여 주는 안내의 판입니다. 새 안내를 만들면 바꿉니다. */
-const noticeVersion = '2.1.0';
-/** 2.1.0 이전에 모든 계정이 함께 쓰던 보관함을 옮기는 폴더 이름입니다. 이미 있으면 뒤에 번호를 붙입니다. */
-const legacyFolderName = 'Legacy';
 export const imageExtensions = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'heic', 'heif', 'tiff']);
 export const videoExtensions = new Set(['mp4', 'webm', 'mov', 'mpeg', 'mkv', 'avi', 'ogv']);
 const logLimit = 1000;
@@ -190,6 +188,8 @@ type Slice = 'meta' | 'scraps' | 'collection' | 'records' | 'job' | 'library';
 export class AppModel {
   readonly browser = new BrowserController();
   private readonly settings = new Settings();
+  readonly updates = new Updates(this.settings, () => this.changed());
+  aboutOpen = false;
   private readonly engine = new ScrapEngine(this.browser);
 
   section: Section = 'scraps';
@@ -200,8 +200,9 @@ export class AppModel {
   loginID?: string;
   /** 아이디 → 그 계정의 보관함 폴더 이름(저장 위치 기준) */
   private accounts: Record<string, { folder?: string; nickname?: string }>;
+  /** 켜면 계정 폴더를, 끄면 저장 위치 바로 아래를 보관함으로 씁니다. 어느 폴더를 볼지만 정하고 파일은 옮기지 않습니다. */
+  useAccountFolder: boolean;
   options: DownloadOptions;
-  notice?: AppNotice;
   readonly scraps = new EntryList('scraps');
   readonly collection = new EntryList('collection');
   records: Record<string, PostRecord> = {};
@@ -238,9 +239,8 @@ export class AppModel {
     this.username = this.settings.get<string>('username');
     this.loginID = this.settings.get<string>('loginID');
     this.accounts = this.settings.get<Record<string, { folder?: string; nickname?: string }>>('accounts') ?? {};
+    this.useAccountFolder = this.settings.get<boolean>('useAccountFolder') ?? true;
     this.options = mergeOptions(this.settings.get<Partial<DownloadOptions>>('downloadOptions'), path.isAbsolute(defaultFolder) ? defaultFolder : path.join(os.homedir(), defaultFolder));
-    // 다른 파일을 읽거나 쓰기 전에 옮깁니다.
-    this.moveSharedLibrary();
     this.autoCheckHours = this.settings.get<number>('autoCheckHours') ?? 0;
     this.autoDownloadNew = this.settings.get<boolean>('autoDownloadNewScraps') ?? false;
     this.theme = this.settings.get<'system' | 'light' | 'dark'>('theme') ?? 'system';
@@ -280,10 +280,10 @@ export class AppModel {
     if (has('meta')) {
       Object.assign(state, {
         platform: process.platform, arch: process.arch, version: app.getVersion(), material: this.material, section: this.section, login: this.login,
-        username: this.username, loginID: this.loginID, options: this.options, notice: this.notice,
+        username: this.username, loginID: this.loginID, useAccountFolder: this.useAccountFolder, options: this.options,
         libraryRoot: this.libraryRoot, isBusy: this.isBusy, newScrapCount: this.newScrapCount,
         lastCheck: this.lastCheck, scrapsFullSyncAt: this.scrapsFullSyncAt, autoCheckHours: this.autoCheckHours, autoDownloadNew: this.autoDownloadNew, theme: this.theme, notifications: this.notifications, termsAccepted: this.termsAccepted,
-        isLoadingLibrary: this.isLoadingLibrary,
+        isLoadingLibrary: this.isLoadingLibrary, update: this.updates.state, aboutOpen: this.aboutOpen,
       } satisfies Partial<AppState>);
     }
     if (has('scraps')) state.scraps = this.scraps.snapshot();
@@ -324,8 +324,6 @@ export class AppModel {
   }
 
   acceptTerms(): void {
-    // 이 판을 새로 설치한 사용자에게는 업데이트 안내가 필요 없습니다. 다음 업데이트에서 보이지 않도록 본 것으로 둡니다.
-    if (!this.notice) this.settings.set('seenNotice', noticeVersion);
     this.settings.set('acceptedTermsVersion', termsVersion);
     void this.settings.flush();
     this.changed();
@@ -346,6 +344,7 @@ export class AppModel {
     this.migrateFolders();
     this.reloadRecords();
     this.scheduleAutoCheck();
+    this.updates.schedule();
     if (await this.browser.hasSession()) {
       // 저장해 둔 목록을 먼저 보여 주고, 그다음 새 글만 찾습니다.
       await this.restoreScraps();
@@ -354,6 +353,32 @@ export class AppModel {
       this.login = 'loggedOut';
       this.changed();
     }
+  }
+
+  // MARK: - 새 버전 확인과 앱 정보
+
+  /** 사용자가 직접 확인합니다. 새 버전이 있으면 정보 창을 닫고 알림 카드를 띄웁니다. */
+  async checkForUpdates(): Promise<UpdateResult> {
+    const result = await this.updates.check(true);
+    if (result.ok && result.newer) this.setAboutOpen(false);
+    return result;
+  }
+
+  dismissUpdate(skip: boolean): void {
+    this.updates.dismiss(skip);
+  }
+
+  downloadUpdate(): boolean {
+    return this.updates.download();
+  }
+
+  setUpdateCheck(value: boolean): void {
+    this.updates.setAuto(value);
+  }
+
+  setAboutOpen(open: boolean): void {
+    this.aboutOpen = open;
+    this.changed();
   }
 
   setSection(section: Section): void {
@@ -521,15 +546,20 @@ export class AppModel {
     this.changed('scraps');
   }
 
-  private get scrapCacheFile(): string {
-    return path.join(this.libraryRoot, '.uncalive', 'scraps.json');
+  /**
+   * 스크랩 목록은 보관함이 아니라 계정의 것이므로, 보관함을 함께 쓰더라도 늘 그 계정의 폴더에 둡니다.
+   * 계정 폴더를 아직 정하지 못했으면(닉네임을 읽기 전) 없습니다.
+   */
+  private get scrapCacheFile(): string | undefined {
+    const folder = this.loginID ? this.accounts[this.loginID]?.folder : undefined;
+    return folder ? path.join(this.options.destination, folder, '.uncalive', 'scraps.json') : undefined;
   }
 
   /** 이 계정의 저장된 스크랩 목록을 불러옵니다. 화면에 이미 목록이 있으면 그대로 둡니다. */
   private async restoreScraps(): Promise<void> {
     const account = this.loginID;
-    if (!account || this.scraps.entries.length > 0) return;
     const file = this.scrapCacheFile;
+    if (!account || !file || this.scraps.entries.length > 0) return;
     let cache: ScrapCache | undefined;
     try {
       cache = parseScrapCache(await fs.readFile(file, 'utf8'), account);
@@ -547,11 +577,12 @@ export class AppModel {
 
   private saveScraps(): void {
     const account = this.loginID;
-    if (!account || this.login !== 'loggedIn') return;
+    const file = this.scrapCacheFile;
+    if (!account || !file || this.login !== 'loggedIn') return;
     const cache: ScrapCache = {
       version: 1, account, pages: this.scrapsPages ?? this.options.pages, fullSyncAt: this.scrapsFullSyncAt, entries: this.scraps.entries,
     };
-    void writeAtomic(this.scrapCacheFile, JSON.stringify(cache)).catch((error) => log(`스크랩 목록 저장 실패: ${errorMessage(error)}`));
+    void writeAtomic(file, JSON.stringify(cache)).catch((error) => log(`스크랩 목록 저장 실패: ${errorMessage(error)}`));
   }
 
   /** 앞쪽만 읽어 새 글을 더해도 되는지입니다. 끝까지 읽은 목록이 있고 불러올 범위가 그때와 같아야 합니다. */
@@ -1016,6 +1047,13 @@ export class AppModel {
     this.changed();
   }
 
+  setUseAccountFolder(value: boolean): void {
+    if (this.job?.isActive) return;
+    this.useAccountFolder = value;
+    this.settings.set('useAccountFolder', value);
+    this.libraryDidChange();
+  }
+
   async chooseDestination(): Promise<void> {
     if (this.job?.isActive) return;
     const result = await dialog.showOpenDialog(this.window!, {
@@ -1035,6 +1073,7 @@ export class AppModel {
 
   /** 실제로 쓰는 보관함 폴더입니다. */
   get libraryRoot(): string {
+    if (!this.useAccountFolder) return this.options.destination;
     const folder = this.loginID ? this.accounts[this.loginID]?.folder : undefined;
     if (folder) return path.join(this.options.destination, folder);
     const name = sanitize(this.username ?? noAccountFolder, 60);
@@ -1054,56 +1093,6 @@ export class AppModel {
     this.reloadRecords();
     this.reloadLibrary();
     this.changed('records', 'library');
-  }
-
-  /**
-   * 2.1.0부터 보관함은 항상 계정마다(로그인하지 않으면 Guest) 나뉩니다. 그 전에 '계정마다 보관함 나누기'를 끄고
-   * 저장 위치 바로 아래를 모든 계정이 함께 쓰던 사용자는 그 보관함을 Legacy 폴더로 옮기고 안내합니다.
-   * 다 옮기지 못하면(같은 이름이 있거나 파일이 잠김) 설정을 남겨 두어 다음 실행 때 이어서 옮깁니다.
-   * 업데이트한 다른 사용자에게는 바뀐 점만 한 번 안내합니다.
-   */
-  private moveSharedLibrary(): void {
-    const upgraded = this.settings.get('acceptedTermsVersion') !== undefined || this.settings.get('importedFromMacApp') === true;
-    if (upgraded && this.settings.get<string>('seenNotice') !== noticeVersion) this.notice = {};
-    if (this.settings.get<boolean>('useAccountFolder') !== false) return;
-    const destination = this.options.destination;
-    // 외장 디스크나 네트워크 위치가 연결되지 않았으면 다음에 다시 시도합니다.
-    if (!existsSync(destination)) return;
-    let folder = this.settings.get<string>('legacyLibraryFolder');
-    if (!folder) {
-      folder = legacyFolderName;
-      for (let number = 2; existsSync(path.join(destination, folder)); number += 1) folder = `${legacyFolderName} ${number}`;
-    }
-    // 계정 보관함과 Guest 보관함, 예전 닉네임 보관함은 그대로 둡니다.
-    const keep = [noAccountFolder, '로그인 안 함', ...Object.values(this.accounts).map((account) => account.folder).filter((name): name is string => !!name)];
-    if (this.username) keep.push(sanitize(this.username, 60));
-    let result;
-    try {
-      result = moveSharedLibrary(destination, folder, keep);
-    } catch (error) {
-      log(`함께 쓰던 보관함 옮기기 실패: ${errorMessage(error)}`);
-      return;
-    }
-    if (!result) {
-      this.settings.set('useAccountFolder', undefined);
-      return;
-    }
-    this.settings.set('legacyLibraryFolder', folder);
-    const complete = result.failed.length === 0;
-    if (complete) this.settings.set('useAccountFolder', undefined);
-    log(`함께 쓰던 보관함을 ${folder} 폴더로 옮김: ${result.moved}개${complete ? '' : `, 남은 항목 ${result.failed.length}개`}`);
-    this.notice = { legacyFolder: path.join(destination, folder), incomplete: !complete };
-  }
-
-  dismissNotice(): void {
-    this.settings.set('seenNotice', noticeVersion);
-    this.notice = undefined;
-    this.changed();
-  }
-
-  openLegacyFolder(): void {
-    const folder = this.notice?.legacyFolder;
-    if (folder) void shell.openPath(folder);
   }
 
   /** 예전 한글 폴더 이름(로그인 안 함, 스크랩, 주소 수집)을 영문으로 옮깁니다. 받는 중에는 하지 않습니다. */
