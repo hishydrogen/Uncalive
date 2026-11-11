@@ -110,7 +110,7 @@ interface RawRelease {
 /** API 응답 → 화면에 넘길 결과 */
 export function interpret(value: unknown, current: string, platform: string, arch: string, kind: InstallKind = 'installer'): UpdateResult {
   const release = (value && typeof value === 'object' ? value : {}) as RawRelease;
-  if (release.draft || release.prerelease || !release.tag_name) return { ok: false, error: '릴리스 정보를 읽지 못했습니다.' };
+  if (release.draft || release.prerelease || !release.tag_name) return { ok: false, error: '릴리스 정보를 읽을 수 없습니다.' };
   const latest = String(release.tag_name).replace(/^v/, '');
   const page = String(release.html_url ?? '');
   return {

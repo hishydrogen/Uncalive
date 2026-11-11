@@ -13,7 +13,7 @@
     ReadRegStr $1 HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation
     ${If} $0 != ""
     ${AndIf} $1 == ""
-      MessageBox MB_OKCANCEL|MB_ICONINFORMATION "이 컴퓨터에 '모든 사용자'용으로 설치된 이전 언카라이브가 있습니다.$\r$\n$\r$\n새 버전은 현재 사용자 계정에 설치됩니다. 설치가 끝나면 Windows 설정의 '앱'에서 이전 언카라이브를 제거해 주세요. 설정과 로그인 정보, 보관함은 그대로 남습니다." IDOK +2
+      MessageBox MB_OKCANCEL|MB_ICONINFORMATION "이 컴퓨터에 '모든 사용자'용으로 설치된 이전 버전의 언카라이브가 있습니다.$\r$\n$\r$\n새 버전은 현재 사용자 계정에만 설치됩니다. 설치가 끝난 뒤 Windows 설정의 '앱'에서 이전 버전을 제거해 주세요. 기존 설정과 로그인 정보, 보관함은 그대로 유지됩니다." IDOK +2
       Quit
     ${EndIf}
   ${EndIf}

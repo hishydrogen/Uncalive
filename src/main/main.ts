@@ -408,13 +408,13 @@ async function confirmUnsandboxedLaunch(): Promise<boolean> {
     // 이 설정이 없는 배포판입니다.
   }
   const fix = restricted
-    ? '격리를 켜려면 터미널에서 다음 명령을 실행한 뒤 언카라이브를 다시 시작해 주세요. 이 설정은 시스템 전체에 적용되며, 재부팅하면 원래대로 돌아갑니다.\nsudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0'
-    : '격리를 켜려면 이 시스템에서 일반 사용자가 사용자 네임스페이스(user namespace)를 쓸 수 있도록 설정해야 합니다.';
+    ? '보안 격리를 활성화하려면 터미널에서 아래 명령어를 실행한 뒤 언카라이브를 다시 시작해 주세요. 이 설정은 시스템 전체에 적용되며, 재부팅하면 원래대로 돌아갑니다.\nsudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0'
+    : '보안 격리를 활성화하려면 시스템에서 일반 사용자가 사용자 네임스페이스(user namespace)를 사용할 수 있도록 설정해야 합니다.';
   const { response, checkboxChecked } = await dialog.showMessageBox({
     type: 'warning',
     title: appName,
     message: '보안 격리 없이 실행됩니다',
-    detail: `이 시스템에서는 Chromium의 보안 격리(sandbox)를 쓸 수 없습니다.${restricted ? ' Ubuntu 24.04 이후의 AppArmor 설정 때문입니다.' : ''}\n\n격리 없이도 언카라이브를 쓸 수 있지만, 아카라이브 같은 웹페이지를 열 때 보안이 약해집니다.\n\n${fix}`,
+    detail: `현재 시스템 환경에서는 Chromium 보안 격리(sandbox)를 사용할 수 없습니다.${restricted ? ' Ubuntu 24.04 이상에 적용된 AppArmor 제한 때문입니다.' : ''}\n\n보안 격리 없이도 언카라이브를 실행할 수 있지만, 외부 웹페이지를 불러올 때 보안에 취약해질 수 있습니다.\n\n${fix}`,
     buttons: ['종료', '격리 없이 실행'],
     defaultId: 0,
     cancelId: 0,

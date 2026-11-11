@@ -10,11 +10,11 @@ const platformNames: Record<string, string> = { darwin: 'macOS', win32: 'Windows
 /** 정보 창과 알림 카드에서 '다운로드'를 눌렀을 때입니다. 내려받기는 기본 웹 브라우저가 합니다. */
 async function download(): Promise<void> {
   const opened = await call('downloadUpdate');
-  showToast(opened ? '웹 브라우저에서 설치 파일을 내려받습니다. 받은 파일을 실행해 설치해 주세요.' : '릴리스 페이지에서 운영체제에 맞는 파일을 내려받아 주세요.');
+  showToast(opened ? '웹 브라우저에서 설치 파일을 내려받습니다. 완료되면 파일을 실행해 설치해 주세요' : '릴리스 페이지에서 운영체제에 맞는 파일을 내려받아 주세요');
 }
 
 function UpdateStatus({ update }: { update: UpdateState }) {
-  if (update.checking) return <span className="faint">확인하는 중…</span>;
+  if (update.checking) return <span className="faint">확인 중…</span>;
   const result = update.result;
   if (!result) return <span className="faint">{update.auto ? '아직 확인하지 않았습니다' : '자동 확인이 꺼져 있습니다'}</span>;
   if (!result.ok) return <span className="warning-text">확인하지 못했습니다. {result.error}</span>;
@@ -67,11 +67,11 @@ export function AboutDialog({ state }: { state: AppState }) {
           </span>
         </div>
       </div>
-      <p className="about-note">아카라이브 운영사와 관련 없는 비공식 프로그램입니다.</p>
+      <p className="about-note">아카라이브 운영사와 무관한 비공식 프로그램입니다.</p>
       <div className="about-foot">
         <span>© 2026 Hishydrogen</span>
         <span className="grow" />
-        <button onClick={() => void call('checkForUpdates')} disabled={state.update.checking}>{state.update.checking ? '확인하는 중…' : '업데이트 확인'}</button>
+        <button onClick={() => void call('checkForUpdates')} disabled={state.update.checking}>{state.update.checking ? '확인 중…' : '업데이트 확인'}</button>
         <button onClick={() => window.open(repository)}><ExternalLink size={14} />GitHub</button>
       </div>
     </Dialog>
@@ -88,7 +88,7 @@ export function UpdateCard({ update }: { update: UpdateState }) {
         <img src={appIcon} alt="" width={36} height={36} />
         <div className="update-title">
           <b>언카라이브 {release.latest} 버전이 나왔습니다</b>
-          <small>지금 사용 중인 버전은 {release.current}입니다</small>
+          <small>현재 사용 중인 버전은 {release.current}입니다</small>
         </div>
         <button className="plain update-close" aria-label="닫기" title="닫기" onClick={() => void call('dismissUpdate', false)}><X size={16} /></button>
       </div>

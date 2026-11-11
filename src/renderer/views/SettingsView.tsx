@@ -62,7 +62,7 @@ function General({ state }: { state: AppState }) {
           <button onClick={() => void call('chooseDestination')} disabled={jobActive}>변경…</button>
         </Row>
         <Toggle label="계정마다 보관함 나누기" checked={state.useAccountFolder} disabled={jobActive} onChange={(value) => void call('setUseAccountFolder', value)} />
-        <p className="caption">현재 보관함: {state.libraryRoot}<br />켜면 저장 위치 안의 계정 폴더를, 끄면 저장 위치 바로 아래를 보관함으로 씁니다. 어느 폴더를 볼지만 바뀌고 이미 받은 파일은 옮기지 않으므로, 되돌리면 전에 보던 보관함이 그대로 나옵니다. 계정은 닉네임이 아닌 로그인 아이디로 구분하며, 스크랩 목록은 이 옵션과 관계없이 계정마다 따로 저장합니다.</p>
+        <p className="caption">현재 보관함: {state.libraryRoot}<br />켜면 저장 위치 안의 계정별 폴더를, 끄면 저장 위치 바로 아래를 보관함으로 사용합니다. 설정을 바꿔도 이미 받은 파일은 이동하지 않으므로, 다시 원래대로 바꾸면 이전에 쓰던 보관함이 그대로 나타납니다. 계정은 닉네임이 아닌 로그인 아이디로 구분하며, 스크랩 목록은 이 옵션과 관계없이 계정마다 따로 저장됩니다.</p>
       </section>
 
       <section className="card">
@@ -84,7 +84,7 @@ function General({ state }: { state: AppState }) {
           <span>{state.scrapsFullSyncAt ? formatAgo(state.scrapsFullSyncAt) : '없음'}</span>
           <button onClick={() => void call('reloadAllScraps')} disabled={state.isBusy || state.login !== 'loggedIn'}>전체 다시 불러오기</button>
         </Row>
-        <p className="caption">불러온 스크랩 목록은 계정마다 따로 저장해 두고, 앱을 열면 바로 보여 줍니다. 새로고침은 첫 페이지부터 읽다가 이미 있는 글이 나오면 멈추므로 금방 끝납니다. 아카라이브에서 스크랩을 해제한 글은 새로고침으로는 목록에서 빠지지 않으니, 필요할 때 '전체 다시 불러오기'를 눌러 주세요. 불러올 범위를 바꾸면 다음 새로고침은 전체를 다시 읽습니다.</p>
+        <p className="caption">불러온 스크랩 목록은 계정마다 따로 저장되며, 앱을 열면 지난 목록을 바로 보여 줍니다. 새로고침은 첫 페이지부터 확인하다가 이미 목록에 있는 글이 나오면 멈추므로 빠르게 끝납니다. 아카라이브에서 스크랩을 해제한 글은 일반 새로고침으로는 빠지지 않으니, 목록에서 제외하려면 ‘전체 다시 불러오기’를 눌러 주세요. 불러올 범위를 바꾸면 다음 새로고침 때 전체 목록을 다시 불러옵니다.</p>
       </section>
 
       <section className="card">
@@ -118,7 +118,7 @@ function General({ state }: { state: AppState }) {
       <section className="card">
         <h3>업데이트</h3>
         <Toggle label="새 버전 자동 확인" checked={state.update.auto} onChange={(value) => void call('setUpdateCheck', value)} />
-        <p className="caption">앱을 시작할 때와 6시간마다 GitHub에서 새 버전을 확인합니다. 앱 이름과 버전 외의 정보는 보내지 않습니다. 새 버전이 있으면 이 컴퓨터에 맞는 설치 파일을 알려 드리며, 설치는 받은 파일을 실행해 직접 해 주세요.</p>
+        <p className="caption">앱을 시작할 때와 6시간마다 GitHub에서 새 버전을 확인하며, 앱 이름과 버전 외의 정보는 전송하지 않습니다. 새 버전이 나오면 이 컴퓨터에 맞는 설치 파일을 안내해 드리며, 자동으로 설치하지는 않으므로 내려받은 파일을 직접 실행해 설치해 주세요.</p>
       </section>
     </>
   );

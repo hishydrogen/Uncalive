@@ -77,7 +77,7 @@ export class Updates {
     this.state.checking = true;
     this.changed();
     this.busy = (async (): Promise<UpdateResult> => {
-      if (!releaseAPI) return { ok: false, error: '저장소 주소가 없습니다.' };
+      if (!releaseAPI) return { ok: false, error: '저장소 주소가 설정되어 있지 않습니다.' };
       try {
         const response = await net.fetch(releaseAPI, {
           headers: { Accept: 'application/vnd.github+json', 'User-Agent': `Uncalive/${app.getVersion()}` },
@@ -85,10 +85,10 @@ export class Updates {
           cache: 'no-store',
         });
         if (response.status === 404) return { ok: false, error: '공개된 릴리스가 없습니다.' };
-        if (!response.ok) return { ok: false, error: `GitHub 응답 오류(${response.status})` };
+        if (!response.ok) return { ok: false, error: `GitHub 응답 오류입니다. (HTTP ${response.status})` };
         return interpret(await response.json(), app.getVersion(), process.platform, process.arch, this.installKind);
       } catch (error) {
-        return { ok: false, error: (error as Error)?.name === 'TimeoutError' ? '응답 시간이 초과되었습니다.' : '인터넷에 연결되어 있지 않거나 GitHub에 접속하지 못했습니다.' };
+        return { ok: false, error: (error as Error)?.name === 'TimeoutError' ? '응답 시간이 초과되었습니다.' : '인터넷에 연결되어 있지 않거나 GitHub에 접속할 수 없습니다.' };
       }
     })().then((result) => {
       if (result.ok) {

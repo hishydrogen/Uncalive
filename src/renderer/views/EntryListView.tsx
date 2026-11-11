@@ -173,7 +173,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
   else if (load.kind === 'loading' && load.page > 0) {
     const pages = `${load.page}${load.highestPage ? `/${load.highestPage}` : ''}페이지`;
     // 전체를 다시 읽는 동안에는 지금 목록을 그대로 두므로 개수 대신 진행만 보여 줍니다.
-    subtitle = load.mode === 'full' && state.scrapsFullSyncAt ? `전체 목록 다시 읽는 중 (${pages})` : `${pages} 불러오는 중 (${list.entries.length}개)`;
+    subtitle = load.mode === 'full' && state.scrapsFullSyncAt ? `전체 목록 다시 불러오는 중 (${pages})` : `${pages} 불러오는 중 (${list.entries.length}개)`;
   } else if (isScraps && subtitle && state.scrapsFullSyncAt) subtitle += ` · 전체 확인 ${formatAgo(state.scrapsFullSyncAt)}`;
   const jobActive = state.job !== undefined && ['running', 'paused', 'waitingForChallenge'].includes(state.job.status);
 
@@ -325,7 +325,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
     body = (
       <div className="list-body">
         <div className="filter-bar">
-          <Select label="채널" value={channel}onChange={(channel) => set({ channel })} options={[{ value: '', label: '모든 채널' }, ...channels.map((channel) => ({ value: channel.id, label: channel.name }))]} />
+          <Select label="채널" value={channel} onChange={(channel) => set({ channel })} options={[{ value: '', label: '모든 채널' }, ...channels.map((channel) => ({ value: channel.id, label: channel.name }))]} />
           <Select<StatusFilter> label="상태" value={filters.status} onChange={(status) => set({ status })} options={[
             { value: 'all', label: '모든 상태' }, { value: 'new', label: '안 받음' }, { value: 'incomplete', label: '일부만 받음' }, { value: 'saved', label: '받음' },
           ]} />
@@ -449,7 +449,7 @@ export function EntryListView(props: { state: AppState; kind: ListKind; filters:
         {loading ? (
           <button onClick={() => void call('stopLoading')}><Square size={14} /> 중지</button>
         ) : isScraps ? (
-          <button onClick={() => void call('refreshScraps')} disabled={state.isBusy || state.login === 'loggedOut'} title={`새 스크랩 확인 (${isMac ? '⌘R' : 'Ctrl+R'})\n앞쪽부터 읽다가 이미 있는 글이 나오면 멈춥니다. 스크랩을 해제한 글까지 반영하려면 설정에서 '전체 다시 불러오기'를 눌러 주세요(${isMac ? '⇧⌘R' : 'Ctrl+Shift+R'}).`}><RefreshCw size={14} /> 새로고침</button>
+          <button onClick={() => void call('refreshScraps')} disabled={state.isBusy || state.login === 'loggedOut'} title={`새 스크랩 확인 (${isMac ? '⌘R' : 'Ctrl+R'})\n첫 페이지부터 확인하다가 이미 목록에 있는 글이 나오면 멈춥니다. 스크랩을 해제한 글까지 반영하려면 설정이나 파일 메뉴에서 ‘전체 다시 불러오기’(${isMac ? '⇧⌘R' : 'Ctrl+Shift+R'})를 눌러 주세요.`}><RefreshCw size={14} /> 새로고침</button>
         ) : (
           <>
             <button onClick={() => setShowAdd(true)}><Plus size={14} /> 주소 추가</button>
