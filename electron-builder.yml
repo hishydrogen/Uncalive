@@ -45,15 +45,14 @@ linux:
   category: Network
   executableName: uncalive
   artifactName: Uncalive-${version}-Linux-${arch}.${ext}
+  # deb와 rpm은 관리자 주소가 있어야 만들어집니다. 커밋에 쓰는 GitHub 공개용 주소입니다.
+  maintainer: "Hishydrogen <196475444+hishydrogen@users.noreply.github.com>"
   # deb(Debian·Ubuntu 계열)와 rpm(Fedora·openSUSE 계열)은 설치할 때 관리자 권한으로 chrome-sandbox 권한과
   # Ubuntu 24.04 이후의 AppArmor 설정을 넣으므로, AppImage와 달리 보안 격리를 끄지 않고 실행됩니다.
   target:
     - AppImage
     - deb
     - rpm
-deb:
-  # deb는 관리자 주소가 있어야 만들어집니다. 커밋에 쓰는 GitHub 공개용 주소입니다.
-  maintainer: "Hishydrogen <196475444+hishydrogen@users.noreply.github.com>"
 mac:
   # 맥 26 이상은 리퀴드 글래스 아이콘을, 그 이전 맥은 같은 파일에서 만든 일반 아이콘을 씁니다. Xcode 26 이상의 actool이 필요합니다.
   icon: resources/AppIcon.icon

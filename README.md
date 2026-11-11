@@ -68,28 +68,32 @@ xattr -dr com.apple.quarantine /Applications/Uncalive.app
 
 ### Linux
 
-사용 중인 배포판에 맞는 설치 파일을 고르세요. `.deb`나 `.rpm`으로 설치하면 Ubuntu 24.04 이상에서도 Chromium 보안 격리(sandbox)가 켜진 상태로 실행되므로, 가능하면 설치 파일을 권장합니다.
+배포판에 맞는 형식을 골라 내려받으세요. 새 버전 알림은 설치한 형식과 같은 형식의 파일을 알려 줍니다.
 
-- **Debian, Ubuntu, Linux Mint 등**: `.deb` 파일을 내려받아 설치합니다.
+| 형식 | 대상 배포판 |
+|---|---|
+| `.deb` | Debian, Ubuntu, Linux Mint, Pop!_OS, elementary OS 등 Debian 계열 |
+| `.rpm` | Fedora, openSUSE, RHEL, Rocky Linux, AlmaLinux 등 RPM 계열 |
+| `.AppImage` | Arch Linux, Manjaro, EndeavourOS 등 그 밖의 배포판 (설치 없이 실행) |
+
+- **`.deb`**
 
 ```bash
 sudo apt install ./Uncalive-*.deb
 ```
 
-- **Fedora, openSUSE 등**: `.rpm` 파일을 내려받아 설치합니다.
+- **`.rpm`** (openSUSE는 `sudo zypper install`)
 
 ```bash
 sudo dnf install ./Uncalive-*.rpm
 ```
 
-- **그 밖의 배포판 또는 설치 없이 실행**: AppImage 파일에 실행 권한을 부여한 뒤 실행합니다. 필요한 라이브러리가 포함되어 있어 따로 설치할 것이 없습니다.
+- **`.AppImage`**: 실행 권한을 부여한 뒤 실행합니다. 필요한 라이브러리가 포함되어 있어 따로 설치할 것이 없습니다.
 
 ```bash
 chmod +x Uncalive-*.AppImage
 ./Uncalive-*.AppImage
 ```
-
-> AppImage는 Ubuntu 24.04 이상 등 일부 환경에서 보안 격리 없이 실행되며, 처음 실행할 때 안내 창이 뜹니다. 보안 격리를 켜려면 `.deb`나 `.rpm`으로 설치하세요. 새 버전 알림은 설치한 형식과 같은 형식의 파일을 알려 줍니다.
 
 ## 사용 방법
 
