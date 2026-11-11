@@ -44,7 +44,7 @@
 
 | 운영체제 | 지원 사양 | 설치 파일 |
 |---|---|---|
-| **macOS** | macOS 13 (Ventura) 이상, **Apple Silicon 전용** | `Uncalive-<버전>-macOS-arm64.dmg` (또는 `.zip`) |
+| **macOS** | macOS 13 (Ventura) 이상, **Apple Silicon 전용** | `Uncalive-<버전>-macOS-arm64.dmg` |
 | **Windows (x64)** | Windows 10 이상 (64비트 인텔/AMD) | `Uncalive-<버전>-Windows-x64-Setup.exe` |
 | **Windows (ARM)** | Windows 11 이상 (ARM64) | `Uncalive-<버전>-Windows-arm64-Setup.exe` |
 | **Linux (x64)** | 64비트 x86_64, glibc 2.25 이상 (시험판) | `Uncalive-<버전>-Linux-amd64.deb`, `-Linux-x86_64.rpm`, `-Linux-x86_64.AppImage` |

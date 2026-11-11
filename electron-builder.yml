@@ -74,6 +74,5 @@ mac:
       to: en.lproj/InfoPlist.strings
   target:
     - target: dmg
-    - target: zip
 dmg:
   title: 언카라이브

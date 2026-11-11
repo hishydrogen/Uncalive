@@ -65,7 +65,7 @@ jobs:
         run: |
           cd dist
           shopt -s nullglob
-          files=(Uncalive-*-macOS-*.dmg Uncalive-*-macOS-*.zip Uncalive-*-Windows-*-Setup.exe Uncalive-*-Linux-*.AppImage Uncalive-*-Linux-*.deb Uncalive-*-Linux-*.rpm)
+          files=(Uncalive-*-macOS-*.dmg Uncalive-*-Windows-*-Setup.exe Uncalive-*-Linux-*.AppImage Uncalive-*-Linux-*.deb Uncalive-*-Linux-*.rpm)
           # CHANGELOG에서 이번 버전의 항목만 뽑아 릴리스 노트로 씁니다.
           awk -v version="## ${TAG#v} " 'index($0, version) == 1 { found = 1; next } found && /^## / { exit } found { print }' ../CHANGELOG.md > notes.md
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --draft --title "언카라이브 ${TAG#v}" --notes-file notes.md || true
